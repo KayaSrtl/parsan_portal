@@ -1,0 +1,143 @@
+@import "tailwindcss";
+@custom-variant dark (&:is(.dark *));
+
+body {
+  margin: 0;
+  @apply bg-gray-100 text-gray-800;
+  color-scheme: light;
+}
+
+html.dark body {
+  @apply bg-slate-950 text-gray-100;
+  color-scheme: dark;
+}
+
+/* ==========================================================================
+   PARSAN SICAK DÖVME (FORGE) ANİMASYONLARI & EFEKTLERİ
+   ========================================================================== */
+
+/* Yavaş süzülme / havada salınma */
+@keyframes floatSlow {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-18px) rotate(2deg);
+  }
+}
+
+/* Ters yönde süzülme */
+@keyframes floatReverse {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(16px) rotate(-2.5deg);
+  }
+}
+
+/* Çapraz dalgalanma */
+@keyframes floatSway {
+  0%, 100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  33% {
+    transform: translate(10px, -14px) rotate(3deg);
+  }
+  66% {
+    transform: translate(-8px, -8px) rotate(-2deg);
+  }
+}
+
+/* Ateş & Kor Işıltısı (Örs ve Sıcak Parça İçin) */
+@keyframes forgeGlow {
+  0%, 100% {
+    filter: drop-shadow(0 0 12px rgba(249, 115, 22, 0.45)) drop-shadow(0 0 25px rgba(239, 68, 68, 0.25));
+  }
+  50% {
+    filter: drop-shadow(0 0 24px rgba(249, 115, 22, 0.9)) drop-shadow(0 0 45px rgba(234, 88, 12, 0.6)) drop-shadow(0 0 60px rgba(251, 146, 60, 0.3));
+  }
+}
+
+/* Akkor Termal Isı Darbesi (Kızgın Çelik) */
+@keyframes heatPulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 15px rgba(239, 68, 68, 0.6)) drop-shadow(0 0 30px rgba(249, 115, 22, 0.35));
+    transform: scale(1);
+  }
+  50% {
+    filter: drop-shadow(0 0 30px rgba(249, 115, 22, 0.95)) drop-shadow(0 0 55px rgba(220, 38, 38, 0.7)) drop-shadow(0 0 80px rgba(245, 158, 11, 0.5));
+    transform: scale(1.02);
+  }
+}
+
+/* Kıvılcım Yükselmesi */
+@keyframes emberRise {
+  0% {
+    transform: translateY(0) scale(0.6) translateX(0);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.9;
+  }
+  70% {
+    opacity: 0.6;
+    transform: translateY(-80px) scale(1) translateX(12px);
+  }
+  100% {
+    transform: translateY(-160px) scale(0.3) translateX(-10px);
+    opacity: 0;
+  }
+}
+
+/* Lav & Ateş Çizgisi Titreşimi */
+@keyframes moltenFlow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* Utility Sınıfları */
+.animate-float-slow {
+  animation: floatSlow 6s ease-in-out infinite;
+}
+
+.animate-float-reverse {
+  animation: floatReverse 7s ease-in-out infinite;
+}
+
+.animate-float-sway {
+  animation: floatSway 8s ease-in-out infinite;
+}
+
+.animate-forge-glow {
+  animation: forgeGlow 3s ease-in-out infinite;
+}
+
+.animate-heat-pulse {
+  animation: heatPulse 2.5s ease-in-out infinite;
+}
+
+.molten-gradient {
+  background: linear-gradient(90deg, #dc2626, #ea580c, #f59e0b, #ea580c, #dc2626);
+  background-size: 300% 300%;
+  animation: moltenFlow 4s ease infinite;
+}
+
+.forge-text-gradient {
+  background: linear-gradient(135deg, #ffffff 20%, #fed7aa 60%, #fb923c 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.molten-text-gradient {
+  background: linear-gradient(135deg, #f97316 0%, #fbbf24 50%, #ef4444 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
