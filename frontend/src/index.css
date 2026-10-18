@@ -45,6 +45,34 @@ html.dark body {
   }
 }
 
+/* Doğal organik salınım (Sadece transform: translate3d, sıfır filtre maliyeti) */
+@keyframes floatSlow {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(0, -14px, 0) rotate(1.5deg);
+  }
+}
+
+@keyframes floatReverse {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(0, 12px, 0) rotate(-1.5deg);
+  }
+}
+
+@keyframes floatSway {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(6px, -12px, 0) rotate(-1.8deg);
+  }
+}
+
 /* Yumuşak giriş */
 @keyframes fadeIn {
   from {
@@ -77,6 +105,21 @@ html.dark body {
 .animate-status-beacon {
   animation: statusBeacon 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   will-change: transform, opacity;
+}
+
+.animate-float-slow {
+  animation: floatSlow 8s ease-in-out infinite;
+  will-change: transform;
+}
+
+.animate-float-reverse {
+  animation: floatReverse 9s ease-in-out infinite;
+  will-change: transform;
+}
+
+.animate-float-sway {
+  animation: floatSway 10s ease-in-out infinite;
+  will-change: transform;
 }
 
 /* Endüstriyel Teknik Izgara Arka Plan Dokusu */
