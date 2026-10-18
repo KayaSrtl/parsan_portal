@@ -45,31 +45,31 @@ html.dark body {
   }
 }
 
-/* Doğal organik salınım (Sadece transform: translate3d, sıfır filtre maliyeti) */
+/* Doğal organik salınım (Rotasyonsuz saf translate3d - GPU 3D motorunu zorlamaz) */
 @keyframes floatSlow {
   0%, 100% {
-    transform: translate3d(0, 0, 0) rotate(0deg);
+    transform: translate3d(0, 0, 0);
   }
   50% {
-    transform: translate3d(0, -14px, 0) rotate(1.5deg);
+    transform: translate3d(0, -12px, 0);
   }
 }
 
 @keyframes floatReverse {
   0%, 100% {
-    transform: translate3d(0, 0, 0) rotate(0deg);
+    transform: translate3d(0, 0, 0);
   }
   50% {
-    transform: translate3d(0, 12px, 0) rotate(-1.5deg);
+    transform: translate3d(0, 10px, 0);
   }
 }
 
 @keyframes floatSway {
   0%, 100% {
-    transform: translate3d(0, 0, 0) rotate(0deg);
+    transform: translate3d(0, 0, 0);
   }
   50% {
-    transform: translate3d(6px, -12px, 0) rotate(-1.8deg);
+    transform: translate3d(4px, -10px, 0);
   }
 }
 
@@ -108,18 +108,24 @@ html.dark body {
 }
 
 .animate-float-slow {
-  animation: floatSlow 8s ease-in-out infinite;
+  animation: floatSlow 14s ease-in-out infinite;
   will-change: transform;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 .animate-float-reverse {
-  animation: floatReverse 9s ease-in-out infinite;
+  animation: floatReverse 16s ease-in-out infinite;
   will-change: transform;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 .animate-float-sway {
-  animation: floatSway 10s ease-in-out infinite;
+  animation: floatSway 18s ease-in-out infinite;
   will-change: transform;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 /* Endüstriyel Teknik Izgara Arka Plan Dokusu */
