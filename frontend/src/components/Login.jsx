@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Eye, EyeOff, RefreshCw, ServerCrash, Flame, Shield } from 'lucide-react';
+import { Eye, EyeOff, RefreshCw, ServerCrash, Shield } from 'lucide-react';
 
 import { useAuth } from '../contexts/AuthContext';
 import { useServerStatus } from '../hooks/useServerStatus';
@@ -42,39 +42,36 @@ export default function Login() {
 
   return (
     <div className="relative min-h-screen flex items-center justify-center bg-slate-950 text-white overflow-hidden p-4 select-none">
-      {/* Kor, kıvılcım ve havada salınan dövme görselleri atmosferi */}
-      <ForgeAtmosphere density={35} showFloatingProps={true} />
+      {/* Endüstriyel hafif atmosfer ve teknik ızgara (Sıfır GPU yükü) */}
+      <ForgeAtmosphere density={6} />
 
       {/* =========================================================================
-          GİRİŞ KARTI (THE FORGE LOGIN BOX)
+          KURUMSAL GİRİŞ KARTI (INDUSTRIAL LOGIN PANEL)
           ========================================================================= */}
-      <div className="relative z-20 w-full max-w-md bg-slate-900/95 backdrop-blur-xl p-8 rounded-2xl border-2 border-amber-500/40 shadow-[0_0_50px_rgba(245,158,11,0.25)] overflow-hidden">
-        {/* Üst lav gradient çizgisi */}
-        <div className="absolute top-0 left-0 right-0 molten-gradient h-1.5" />
+      <div className="relative z-20 w-full max-w-md bg-slate-900/95 p-8 rounded-2xl border border-slate-700/70 shadow-2xl overflow-hidden backdrop-blur-xs">
+        {/* Üst zarif endüstriyel fırın çizgisi */}
+        <div className="absolute top-0 left-0 right-0 forge-line-gradient h-1" />
 
         <div className="flex flex-col items-center mb-6">
-          <div className="relative p-2 rounded-2xl bg-gradient-to-br from-amber-500/20 via-slate-800 to-slate-900 border border-amber-500/40 shadow-[0_0_20px_rgba(245,158,11,0.3)] mb-4">
+          <div className="relative p-2.5 rounded-xl bg-slate-800 border border-slate-700/90 shadow-sm mb-4">
             <img
               src={`${baseUrl}parsanlogo.jpeg`}
               alt="Parsan Logo"
-              className="w-16 h-16 object-contain bg-white p-2 rounded-xl shadow-md"
+              className="w-14 h-14 object-contain bg-white p-1.5 rounded-lg shadow-sm"
             />
-            <div className="absolute -top-1 -right-1">
-              <Flame className="w-5 h-5 text-red-500 animate-bounce" />
-            </div>
           </div>
 
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[11px] font-black uppercase tracking-wider mb-2">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-amber-400 text-[11px] font-bold uppercase tracking-wider mb-2.5">
             <Shield className="w-3.5 h-3.5 text-amber-500" />
             Ağır Dövme Çelik Sanayii
           </div>
 
           <h2 className="text-2xl sm:text-3xl font-black text-center tracking-tight">
             <span className="forge-text-gradient">PARSAN</span>{' '}
-            <span className="molten-text-gradient">PORTAL</span>
+            <span className="amber-text-gradient">PORTAL</span>
           </h2>
           <p className="text-gray-400 text-xs sm:text-sm mt-1 text-center font-medium">
-            5S İşletme ve Saha Operasyonları
+            5S İşletme ve Saha Operasyonları Sistemi
           </p>
         </div>
 
@@ -181,15 +178,15 @@ export default function Login() {
           <button
             type="submit"
             disabled={isSubmitting || isOffline}
-            className="w-full py-3.5 px-4 rounded-xl font-black text-sm uppercase tracking-wider text-white bg-gradient-to-r from-red-600 via-orange-600 to-amber-500 hover:from-red-500 hover:via-orange-500 hover:to-amber-400 shadow-[0_4px_25px_rgba(234,88,12,0.45)] hover:shadow-[0_6px_30px_rgba(249,115,22,0.6)] active:scale-[0.98] transition-all duration-200 disabled:opacity-50 cursor-pointer"
+            className="w-full py-3 px-4 rounded-xl font-bold text-sm uppercase tracking-wider text-white bg-amber-600 hover:bg-amber-500 shadow-md hover:shadow-lg active:scale-[0.99] transition-all duration-150 disabled:opacity-50 cursor-pointer border border-amber-500/40"
           >
             {isSubmitting ? 'Doğrulanıyor...' : 'Giriş Yap'}
           </button>
         </form>
 
         <div className="mt-6 pt-4 border-t border-slate-800 text-center">
-          <p className="text-[11px] text-gray-400 font-medium">
-            🔥 Sıcak Dövme Pres Hatları & Talaşlı İmalat
+          <p className="text-[11px] text-gray-500 font-medium">
+            PARSAN Makina Parçaları Sanayii A.Ş. • Endüstriyel İşletim Sistemi
           </p>
         </div>
       </div>

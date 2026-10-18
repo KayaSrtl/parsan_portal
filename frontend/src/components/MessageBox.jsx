@@ -42,8 +42,10 @@ export default function MessageBox({ currentUser, onNavigate }) {
     if (currentUser) {
       // oxlint-disable-next-line react/set-state-in-effect -- dış sistemle (sunucu) senkronizasyon
       fetchNotifications();
-      // 30 saniyede bir yeni bildirimleri yokla
-      const interval = setInterval(fetchNotifications, 30000);
+      // 30 saniyede bir yeni bildirimleri yokla; sekme arka plandayken boşuna istek atma.
+      const interval = setInterval(() => {
+        if (!document.hidden) fetchNotifications();
+      }, 30000);
       return () => clearInterval(interval);
     }
   }, [currentUser]);
@@ -184,9 +186,9 @@ export default function MessageBox({ currentUser, onNavigate }) {
           BİLDİRİM / MESAJ KUTUSU AÇILIR PANELİ (POPOVER)
           ========================================================================= */}
       {isOpen && (
-        <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-slate-900/95 border-2 border-amber-500/40 rounded-2xl shadow-[0_15px_40px_rgba(0,0,0,0.6)] backdrop-blur-xl z-50 overflow-hidden animate-fade-in text-white">
-          {/* Üst Kor Lav Çizgisi */}
-          <div className="molten-gradient h-1 w-full" />
+        <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-slate-900/95 border border-slate-700/80 rounded-2xl shadow-2xl z-50 overflow-hidden animate-fade-in text-white">
+          {/* Üst Zarif Fırın Çizgisi */}
+          <div className="forge-line-gradient h-1 w-full" />
 
           {/* Panel Başlığı */}
           <div className="p-4 border-b border-slate-800 flex items-center justify-between">

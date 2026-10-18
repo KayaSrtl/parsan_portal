@@ -1,5 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
-import { Home, LogOut, User, Flame } from 'lucide-react';
+import { Home, LogOut, User } from 'lucide-react';
 
 import { useAuth } from './contexts/AuthContext';
 import { useIssues } from './hooks/useIssues';
@@ -184,13 +184,13 @@ function MainApp({ user }) {
 
   return (
     <div className="relative min-h-screen bg-slate-950 font-sans text-gray-100 transition-colors duration-200 overflow-x-hidden">
-      {/* Tüm sayfalarda çalışan ateşli dövme arka planı ve salınan görseller */}
-      <ForgeAtmosphere density={35} showFloatingProps={true} />
+      {/* Endüstriyel hafif fırın ambiyansı (Sıfır GPU yükü) */}
+      <ForgeAtmosphere density={6} />
 
-      <nav className="bg-slate-900/95 backdrop-blur-md text-white p-4 shadow-2xl relative z-30">
+      <nav className="bg-slate-900/95 text-white p-4 shadow-xl border-b border-slate-800 relative z-30">
         <div className="container mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
           <h1 className="text-xl md:text-2xl font-black tracking-tight flex items-center gap-3">
-            <div className="relative p-1 bg-gradient-to-br from-amber-500/20 via-slate-800 to-slate-900 border border-amber-500/40 rounded-lg shadow-sm">
+            <div className="relative p-1 bg-slate-800 border border-slate-700/80 rounded-lg shadow-xs">
               <img
                 src={`${import.meta.env.BASE_URL}parsanlogo.jpeg`}
                 alt="Parsan Logo"
@@ -199,8 +199,8 @@ function MainApp({ user }) {
             </div>
             <span className="sm:inline text-white font-black tracking-tight flex items-center gap-2">
               <span className="forge-text-gradient">PARSAN</span>
-              <span className="text-xs uppercase px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold hidden sm:inline-flex items-center gap-1">
-                <Flame className="w-3 h-3 text-orange-500" /> Dövme Portalı
+              <span className="text-xs uppercase px-2.5 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300 font-bold hidden sm:inline-flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-status-beacon" /> İşletme Portalı
               </span>
               {APP_TITLES[currentApp] && (
                 <span className="text-amber-400 text-sm md:text-base font-extrabold"> - {APP_TITLES[currentApp]}</span>
@@ -224,9 +224,9 @@ function MainApp({ user }) {
             )}
 
             {currentApp === APPS.ISSUES && [
-              navButton('Açık Problemler', TABS.OPEN, 'bg-amber-600 text-white shadow-[0_0_12px_rgba(245,158,11,0.5)]'),
-              navButton('Çözülmüş Problemler', TABS.RESOLVED, 'bg-emerald-600 text-white shadow-[0_0_12px_rgba(16,185,129,0.4)]'),
-              navButton('İstatistikler', TABS.ANALYTICS, 'bg-purple-600 text-white shadow-[0_0_12px_rgba(168,85,247,0.4)]'),
+              navButton('Açık Problemler', TABS.OPEN, 'bg-amber-600 text-white shadow-sm'),
+              navButton('Çözülmüş Problemler', TABS.RESOLVED, 'bg-emerald-600 text-white shadow-sm'),
+              navButton('İstatistikler', TABS.ANALYTICS, 'bg-purple-600 text-white shadow-sm'),
             ]}
 
             <button
@@ -253,7 +253,7 @@ function MainApp({ user }) {
             <div className="flex items-center gap-2 bg-slate-800/90 border border-slate-700/80 px-3 py-1.5 rounded-xl text-xs md:text-sm shadow-sm">
               <User className="w-4 h-4 text-amber-400" />
               <span className="font-semibold text-white">{user.name}</span>
-              <span className="bg-gradient-to-r from-red-600 to-amber-600 text-white font-black text-[10px] px-2 py-0.5 rounded uppercase">
+              <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold text-[10px] px-2 py-0.5 rounded uppercase">
                 {user.role}
               </span>
             </div>
@@ -266,7 +266,7 @@ function MainApp({ user }) {
           </div>
         </div>
       </nav>
-      <div className="molten-gradient h-1 w-full shadow-[0_0_15px_rgba(245,158,11,0.5)] relative z-20" />
+      <div className="forge-line-gradient h-0.5 w-full relative z-20" />
 
       <main className="container mx-auto py-4 md:py-8 px-2 md:px-4 relative z-10">
         {currentApp === APPS.PORTAL &&

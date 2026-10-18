@@ -29,3 +29,11 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 .idea/
+
+# Dağıtım verisi (veritabanı, yüklemeler)
+data/
+tunnel/credentials.json
+
+# Dağıtım betikleri (içinde gizli dağıtım anahtarı barındırır)
+deploy.sh
+deploy.cmd

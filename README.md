@@ -114,6 +114,38 @@ Yetki kontrolleri hem arayüzde hem sunucuda yapılır; arayüzü atlayan istekl
 
 ## Dağıtım (şirket sunucusu)
 
+### Hızlı dağıtım (docker compose)
+
+Kök dizindeki `deploy.sh` (Linux/macOS) veya `deploy.cmd` (Windows) betiği:
+
+1. GitHub'dan en güncel kodu çeker (özel depo erişimi için `GITHUB_TOKEN`),
+2. `docker compose` ile api + web + cloudflared servislerini derleyip ayağa kaldırır.
+
+Betiğin başındaki `GITHUB_TOKEN` alanına GitHub erişim anahtarını (fine-grained PAT) yazın.
+Anahtarı dosyaya gömmek istemezseniz ortam değişkeniyle de verebilirsiniz:
+
+```bash
+# Linux/macOS
+chmod +x deploy.sh
+./deploy.sh
+# ya da anahtarı ortam değişkeni olarak verin:
+GITHUB_TOKEN='github_pat_...' ./deploy.sh
+```
+
+```bat
+REM Windows
+deploy.cmd
+```
+
+> **Güvenlik:** Bu betikler gizli anahtar barındırdığı için `.gitignore` içindedir; git'e
+> gönderilmez. Anahtarı kimseyle paylaşmayın ve sızma şüphesinde GitHub üzerinden
+> derhal iptal edip (revoke) yenisini üretin.
+>
+> **Not:** `JWT_SECRET` bu betikten değil, kökteki `.env` dosyasından okunur (docker compose
+> otomatik yükler).
+
+### Manuel dağıtım
+
 Backend tek başına çalışan bir Node.js servisidir (varsayılan port 5000). Arayüz derlenir ve
 statik dosya olarak bir web sunucusundan (IIS, nginx vb.) yayınlanır.
 

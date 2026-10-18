@@ -289,7 +289,7 @@ export default function ActionModule({ onBack, currentUser }) {
           ========================================================================= */}
       {view === 'list' && (
         <div className="mb-6 space-y-3">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-900/90 border border-slate-700/80 p-2 rounded-2xl shadow-lg backdrop-blur-md">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-900/90 border border-slate-700/80 p-2 rounded-2xl shadow-lg">
             <div className="flex flex-wrap items-center gap-2">
               {/* Bana Ait Görevler */}
               <button
@@ -620,7 +620,7 @@ export default function ActionModule({ onBack, currentUser }) {
 function ActionList({ actions, onSelect, scope }) {
   if (actions.length === 0) {
     return (
-      <div className="p-10 text-center bg-slate-900/85 border border-slate-700/80 rounded-2xl shadow-xl backdrop-blur-md">
+      <div className="p-10 text-center bg-slate-900/85 border border-slate-700/80 rounded-2xl shadow-xl">
         <UserCheck className="w-10 h-10 text-amber-500/60 mx-auto mb-3" />
         <h4 className="text-base font-bold text-gray-200 mb-1">
           {scope === 'my'

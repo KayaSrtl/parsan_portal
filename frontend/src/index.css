@@ -13,131 +13,116 @@ html.dark body {
 }
 
 /* ==========================================================================
-   PARSAN SICAK DÖVME (FORGE) ANİMASYONLARI & EFEKTLERİ
+   PARSAN ENDÜSTRİYEL DÖVME ÇELİK TEMASI & HAFİF EFEKTLER
+   --------------------------------------------------------------------------
+   GPU PERFORMANSI:
+   Sayfada filtre (blur, drop-shadow) döngüleri tamamen kaldırılmıştır.
+   Tüm görsel efektler saf CSS gradientleri ve hardware-accelerated transform
+   üzerinden sıfıra yakın GPU tüketimi ile çalışır.
    ========================================================================== */
 
-/* Yavaş süzülme / havada salınma */
-@keyframes floatSlow {
-  0%, 100% {
-    transform: translateY(0px) rotate(0deg);
-  }
-  50% {
-    transform: translateY(-18px) rotate(2deg);
-  }
+:root {
+  --ease-soft: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Ters yönde süzülme */
-@keyframes floatReverse {
-  0%, 100% {
-    transform: translateY(0px) rotate(0deg);
-  }
-  50% {
-    transform: translateY(16px) rotate(-2.5deg);
-  }
-}
-
-/* Çapraz dalgalanma */
-@keyframes floatSway {
-  0%, 100% {
-    transform: translate(0, 0) rotate(0deg);
-  }
-  33% {
-    transform: translate(10px, -14px) rotate(3deg);
-  }
-  66% {
-    transform: translate(-8px, -8px) rotate(-2deg);
-  }
-}
-
-/* Ateş & Kor Işıltısı (Örs ve Sıcak Parça İçin) */
-@keyframes forgeGlow {
-  0%, 100% {
-    filter: drop-shadow(0 0 12px rgba(249, 115, 22, 0.45)) drop-shadow(0 0 25px rgba(239, 68, 68, 0.25));
-  }
-  50% {
-    filter: drop-shadow(0 0 24px rgba(249, 115, 22, 0.9)) drop-shadow(0 0 45px rgba(234, 88, 12, 0.6)) drop-shadow(0 0 60px rgba(251, 146, 60, 0.3));
-  }
-}
-
-/* Akkor Termal Isı Darbesi (Kızgın Çelik) */
-@keyframes heatPulse {
-  0%, 100% {
-    filter: drop-shadow(0 0 15px rgba(239, 68, 68, 0.6)) drop-shadow(0 0 30px rgba(249, 115, 22, 0.35));
-    transform: scale(1);
-  }
-  50% {
-    filter: drop-shadow(0 0 30px rgba(249, 115, 22, 0.95)) drop-shadow(0 0 55px rgba(220, 38, 38, 0.7)) drop-shadow(0 0 80px rgba(245, 158, 11, 0.5));
-    transform: scale(1.02);
-  }
-}
-
-/* Kıvılcım Yükselmesi */
-@keyframes emberRise {
+/* Yüksek Fırın Mikro-Kıvılcım Hareketi (Sıfır GPU Maliyeti) */
+@keyframes emberRiseSoft {
   0% {
-    transform: translateY(0) scale(0.6) translateX(0);
+    transform: translate3d(0, 0, 0);
     opacity: 0;
   }
   15% {
-    opacity: 0.9;
+    opacity: 0.7;
   }
   70% {
-    opacity: 0.6;
-    transform: translateY(-80px) scale(1) translateX(12px);
+    opacity: 0.5;
+    transform: translate3d(6px, -120px, 0);
   }
   100% {
-    transform: translateY(-160px) scale(0.3) translateX(-10px);
+    transform: translate3d(-4px, -240px, 0);
     opacity: 0;
   }
 }
 
-/* Lav & Ateş Çizgisi Titreşimi */
-@keyframes moltenFlow {
-  0% {
-    background-position: 0% 50%;
+/* Yumuşak giriş */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* Canlı Operasyonel Gösterge Nabzı (Sadece transform/opacity, filtre yok) */
+@keyframes statusBeacon {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.9;
   }
   50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
+    transform: scale(1.35);
+    opacity: 0.35;
   }
 }
 
 /* Utility Sınıfları */
-.animate-float-slow {
-  animation: floatSlow 6s ease-in-out infinite;
+.animate-fade-in {
+  animation: fadeIn 0.25s var(--ease-out-soft) both;
 }
 
-.animate-float-reverse {
-  animation: floatReverse 7s ease-in-out infinite;
+.animate-status-beacon {
+  animation: statusBeacon 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  will-change: transform, opacity;
 }
 
-.animate-float-sway {
-  animation: floatSway 8s ease-in-out infinite;
+/* Endüstriyel Teknik Izgara Arka Plan Dokusu */
+.bg-industrial-grid {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 28px 28px;
 }
 
-.animate-forge-glow {
-  animation: forgeGlow 3s ease-in-out infinite;
-}
-
-.animate-heat-pulse {
-  animation: heatPulse 2.5s ease-in-out infinite;
-}
-
-.molten-gradient {
-  background: linear-gradient(90deg, #dc2626, #ea580c, #f59e0b, #ea580c, #dc2626);
-  background-size: 300% 300%;
-  animation: moltenFlow 4s ease infinite;
-}
-
+/* Kurumsal Endüstriyel Çelik & Sıcak Amber Başlık Geçişleri */
 .forge-text-gradient {
-  background: linear-gradient(135deg, #ffffff 20%, #fed7aa 60%, #fb923c 100%);
+  background: linear-gradient(135deg, #ffffff 30%, #e2e8f0 70%, #cbd5e1 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
-.molten-text-gradient {
-  background: linear-gradient(135deg, #f97316 0%, #fbbf24 50%, #ef4444 100%);
+.amber-text-gradient {
+  background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 60%, #d97706 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+
+/* Göz yormayan, sabit endüstriyel fırın çizgisi (CPU/GPU tüketen sonsuz döngü yerine statik şık gradient) */
+.forge-line-gradient {
+  background: linear-gradient(90deg, rgba(217, 119, 6, 0.1) 0%, rgba(245, 158, 11, 0.9) 35%, rgba(234, 88, 12, 0.9) 65%, rgba(217, 119, 6, 0.1) 100%);
+}
+
+/* Arka plan atmosferi: izole katman */
+.forge-atmosphere {
+  contain: layout paint style;
+}
+
+/* Sekme arka planda kalınca animasyonları durdur */
+html.tab-hidden *,
+html.tab-hidden *::before,
+html.tab-hidden *::after {
+  animation-play-state: paused !important;
+}
+
+/* İşletim sistemi "hareketi azalt" derse animasyonları kapat */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }

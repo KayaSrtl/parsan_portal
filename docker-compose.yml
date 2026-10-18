@@ -1,0 +1,33 @@
+# parsan.engrare.com dağıtımı: docker compose up -d --build
+# Gerekli: .env (kökte) -> JWT_SECRET, SEED_PASSWORD, SEED_USERS
+# Tünel kimliği: tunnel/credentials.json (git'e girmez)
+services:
+  api:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "5000"
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET gerekli}
+      CORS_ORIGINS: https://parsan.engrare.com
+      DB_PATH: data/database.sqlite
+      SEED_USERS: ${SEED_USERS:-false}
+      SEED_PASSWORD: ${SEED_PASSWORD:-}
+    volumes:
+      - ./data:/app/data
+      - ./data/uploads:/app/uploads
+
+  web:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on: [api]
+    ports:
+      - "127.0.0.1:8090:80"
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
+    volumes:
+      - ./tunnel:/etc/cloudflared:ro
+    depends_on: [web]

@@ -20,7 +20,7 @@ export default function ComingSoonModule({ onBack, title, description, Icon, col
       </div>
 
       <div
-        className={`bg-slate-900/90 border-2 border-slate-700 rounded-2xl shadow-2xl p-8 sm:p-12 text-center border-t-8 ${palette.border} backdrop-blur-md`}
+        className={`bg-slate-900/90 border-2 border-slate-700 rounded-2xl shadow-2xl p-8 sm:p-12 text-center border-t-8 ${palette.border}`}
       >
         <Icon className={`w-20 h-20 ${palette.icon} mx-auto mb-6 opacity-90`} />
         <h2 className="text-3xl font-black text-white mb-4">{title}</h2>

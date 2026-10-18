@@ -1,260 +1,269 @@
-import { AlertTriangle, CheckSquare, ClipboardList, Wrench, Flame, Activity } from 'lucide-react';
+import { memo } from 'react';
+import { AlertTriangle, CheckSquare, ClipboardList, Wrench, Activity, ShieldCheck, Factory, Gauge } from 'lucide-react';
 
 const MODULES = [
   {
     id: 'hata_kartlari',
-    title: 'Hata Kartları',
-    subtitle: '5S & Arıza Bildirimleri',
-    description: 'Sahadaki 5S uygunsuzlukları, kırmızı kartlar ve arıza bildirimlerini yönetin.',
+    title: '5S Hata Kartları',
+    subtitle: 'Kırmızı Etiket & Uygunsuzluk',
+    description: 'Sahadaki 5S uygunsuzlukları, kırmızı etiketler ve anlık arıza bildirimlerini takip edin.',
     Icon: AlertTriangle,
-    accentColor: 'from-red-500 to-amber-500',
-    borderGlow: 'hover:border-red-500 hover:shadow-[0_0_30px_rgba(239,68,68,0.35)]',
     badge: 'KIRMIZI ETİKET',
-    badgeColor: 'bg-red-500/20 text-red-400 border-red-500/40',
+    badgeStyle: 'bg-red-500/10 text-red-400 border-red-500/30',
+    iconBg: 'bg-red-500/20 text-red-400 border border-red-500/30',
+    hoverBorder: 'hover:border-red-500/60',
   },
   {
     id: 'aksiyon_modulu',
     title: 'Aksiyon Modülü',
-    subtitle: 'Görev & Atama Takibi',
-    description: 'Saha iyileştirme aksiyonlarını, sorumlu atamalarını ve terminleri yönetin.',
+    subtitle: 'Görev & Termin Takibi',
+    description: 'Saha iyileştirme aksiyonlarını, sorumlu atamalarını ve hedef termin tarihlerini yönetin.',
     Icon: CheckSquare,
-    accentColor: 'from-amber-500 to-orange-500',
-    borderGlow: 'hover:border-amber-500 hover:shadow-[0_0_30px_rgba(245,158,11,0.35)]',
     badge: 'AKTİF TAKİP',
-    badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+    badgeStyle: 'bg-amber-500/10 text-amber-300 border-amber-500/30',
+    iconBg: 'bg-amber-500/20 text-amber-300 border border-amber-500/30',
+    hoverBorder: 'hover:border-amber-500/60',
   },
   {
     id: 'bes_s_denetim',
-    title: '5S Denetim',
-    subtitle: 'Radar Grafik & Checklist',
-    description: 'Bölüm bazlı 5S denetim soru listesi, anlık skor hesaplama ve radar grafiği.',
+    title: '5S Denetim Modülü',
+    subtitle: 'Radar Grafik & Skorlama',
+    description: 'Bölüm bazlı 5S denetim soru listeleri, anlık puanlama ve kurumsal radar grafikleri.',
     Icon: ClipboardList,
-    accentColor: 'from-orange-500 to-emerald-500',
-    borderGlow: 'hover:border-orange-500 hover:shadow-[0_0_30px_rgba(249,115,22,0.35)]',
     badge: 'RADAR RAPOR',
-    badgeColor: 'bg-orange-500/20 text-orange-300 border-orange-500/40',
+    badgeStyle: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30',
+    iconBg: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30',
+    hoverBorder: 'hover:border-emerald-500/60',
   },
   {
     id: 'otonom_bakim',
-    title: 'Otonom Bakım',
+    title: 'Otonom Bakım (TPM)',
     subtitle: 'Operatör Kontrolleri',
-    description: 'Tezgah operatör bakım checklistleri, yağlama ve temizlik standartları.',
+    description: 'Tezgah operatör kontrol checklistleri, yağlama standartları ve periyodik temizlik adımları.',
     Icon: Wrench,
-    accentColor: 'from-blue-500 to-indigo-500',
-    borderGlow: 'hover:border-blue-500 hover:shadow-[0_0_30px_rgba(59,130,246,0.35)]',
-    badge: 'TKY SİSTEMİ',
-    badgeColor: 'bg-blue-500/20 text-blue-300 border-blue-500/40',
+    badge: 'TPM SİSTEMİ',
+    badgeStyle: 'bg-blue-500/10 text-blue-300 border-blue-500/30',
+    iconBg: 'bg-blue-500/20 text-blue-300 border border-blue-500/30',
+    hoverBorder: 'hover:border-blue-500/60',
   },
 ];
 
-export default function PortalView({ onSelectApp }) {
+function PortalView({ onSelectApp }) {
   const baseUrl = import.meta.env.BASE_URL;
 
   return (
-    <div className="relative min-h-[calc(100vh-120px)] max-w-7xl mx-auto px-4 py-6 animate-fade-in">
-
-      {/* =========================================================================
-          MERKEZ İÇERİK ALANI
-          ========================================================================= */}
-      <div className="relative z-10 max-w-5xl mx-auto">
-        
-        {/* HERO BAŞLIK & ENDÜSTRİYEL KOR BANDI */}
-        <div className="text-center mb-8 pt-4">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-900/80 border border-amber-500/40 text-amber-400 text-xs md:text-sm font-black tracking-wider uppercase mb-4 shadow-[0_0_20px_rgba(245,158,11,0.25)] animate-pulse">
-            <Flame className="w-4 h-4 text-red-500 animate-bounce" />
-            Sıcak Dövme Pres Hatları & Ağır Çelik Sanayii
-            <Flame className="w-4 h-4 text-orange-500 animate-bounce" />
-          </div>
-
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight text-white mb-3">
-            <span className="forge-text-gradient">PARSAN</span>{' '}
-            <span className="molten-text-gradient">İŞLETME PORTALI</span>
-          </h1>
-
-          <p className="text-gray-300 dark:text-gray-300 text-base md:text-lg max-w-2xl mx-auto font-medium leading-relaxed">
-            Dövme pres hatları, kalıphane, ısıl işlem ve talaşlı imalat süreçlerinde 
-            <span className="text-amber-400 font-bold"> 5S Standartları </span> ve operasyonel mükemmellik.
-          </p>
-        </div>
+    <div className="relative min-h-[calc(100vh-140px)] max-w-7xl mx-auto px-3 sm:px-4 py-4 md:py-6 animate-fade-in">
+      <div className="relative z-10 max-w-6xl mx-auto space-y-8">
 
         {/* =========================================================================
-            MOBİL / ORTA BOY EKRANLAR İÇİN DÖVME ARAÇLARI SALINAN ŞERİT (SHOWCASE STRIP)
+            1. ENDÜSTRİYEL HERO BAŞLIK & SAHA DURUM PANELİ
             ========================================================================= */}
-        <div className="xl:hidden mb-8 overflow-x-auto pb-3 pt-1 scrollbar-thin">
-          <div className="flex items-center justify-start sm:justify-center gap-4 min-w-max px-2">
-            
-            {/* Ateşli Örs */}
-            <div className="flex items-center gap-3 bg-slate-900/90 border border-amber-500/40 rounded-2xl p-2.5 shadow-md">
-              <img
-                src={`${baseUrl}content/ors.png`}
-                alt="Örs"
-                className="w-12 h-12 object-contain animate-float-slow animate-forge-glow"
-              />
-              <div className="text-left pr-2">
-                <div className="text-[10px] text-amber-400 font-bold uppercase">Dövme Örsü</div>
-                <div className="text-xs font-black text-white">Sıcak Dövme</div>
+        <div className="bg-slate-900/90 rounded-2xl border border-slate-800 p-6 md:p-8 shadow-xl relative overflow-hidden backdrop-blur-xs">
+          {/* Üst Zarif Fırın Çizgisi */}
+          <div className="absolute top-0 left-0 right-0 forge-line-gradient h-1" />
+
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800/90 border border-slate-700 text-slate-300 text-xs font-semibold mb-3">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-status-beacon" />
+                <span>Canlı Saha Durumu: Pres Hatları & Talaşlı İmalat Operasyonel</span>
               </div>
+
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-white">
+                <span className="forge-text-gradient">PARSAN</span>{' '}
+                <span className="amber-text-gradient">İŞLETME PORTALI</span>
+              </h1>
+
+              <p className="text-gray-400 text-sm md:text-base mt-2 max-w-2xl font-medium leading-relaxed">
+                Sıcak dövme pres hatları, kalıphane ve talaşlı imalat süreçlerinde 
+                <span className="text-gray-200 font-semibold"> 5S Standartları</span>, operasyonel takip ve saha disiplini.
+              </p>
             </div>
 
-            {/* Sıcak Parça */}
-            <div className="flex items-center gap-3 bg-slate-900/90 border border-red-500/40 rounded-2xl p-2.5 shadow-md">
-              <img
-                src={`${baseUrl}content/sicak_parca.png`}
-                alt="Sıcak Kütük"
-                className="w-12 h-12 object-contain animate-heat-pulse"
-              />
-              <div className="text-left pr-2">
-                <div className="text-[10px] text-red-400 font-bold uppercase">Akkor Çelik</div>
-                <div className="text-xs font-black text-white">Sıcak Kütük</div>
+            {/* Hızlı Fabrika Durum İndikatörleri */}
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 bg-slate-950/70 border border-slate-800 p-3 rounded-xl">
+              <div className="px-3 py-2 text-center border-r border-slate-800 last:border-none flex-1 sm:flex-initial">
+                <div className="flex items-center justify-center gap-1.5 text-xs text-gray-400 font-bold uppercase tracking-wider mb-0.5">
+                  <Factory className="w-3.5 h-3.5 text-amber-400" /> Tesis
+                </div>
+                <div className="text-sm font-black text-white">Dövme & Pres</div>
+              </div>
+
+              <div className="px-3 py-2 text-center border-r border-slate-800 last:border-none flex-1 sm:flex-initial">
+                <div className="flex items-center justify-center gap-1.5 text-xs text-gray-400 font-bold uppercase tracking-wider mb-0.5">
+                  <Gauge className="w-3.5 h-3.5 text-emerald-400" /> 5S Sistemi
+                </div>
+                <div className="text-sm font-black text-emerald-400 flex items-center justify-center gap-1">
+                  <ShieldCheck className="w-4 h-4" /> Aktif
+                </div>
+              </div>
+
+              <div className="px-3 py-2 text-center flex-1 sm:flex-initial">
+                <div className="flex items-center justify-center gap-1.5 text-xs text-gray-400 font-bold uppercase tracking-wider mb-0.5">
+                  <Activity className="w-3.5 h-3.5 text-blue-400" /> Vardiya
+                </div>
+                <div className="text-sm font-black text-white">Kesintisiz</div>
               </div>
             </div>
-
-            {/* Çekiç */}
-            <div className="flex items-center gap-3 bg-slate-900/90 border border-orange-500/40 rounded-2xl p-2.5 shadow-md">
-              <img
-                src={`${baseUrl}content/hammer.png`}
-                alt="Şahmerdan"
-                className="w-12 h-12 object-contain animate-float-reverse"
-              />
-              <div className="text-left pr-2">
-                <div className="text-[10px] text-orange-400 font-bold uppercase">Şahmerdan</div>
-                <div className="text-xs font-black text-white">Dövme Çekici</div>
-              </div>
-            </div>
-
-            {/* Krank Mili */}
-            <div className="flex items-center gap-3 bg-slate-900/90 border border-slate-700 rounded-2xl p-2.5 shadow-md">
-              <img
-                src={`${baseUrl}content/crankshaft.png`}
-                alt="Krank"
-                className="w-12 h-12 object-contain animate-float-slow"
-              />
-              <div className="text-left pr-2">
-                <div className="text-[10px] text-gray-400 font-bold uppercase">Ağır Sanayi</div>
-                <div className="text-xs font-black text-white">Krank Milleri</div>
-              </div>
-            </div>
-
           </div>
         </div>
 
         {/* =========================================================================
-            CANLI DÖVME HATTI VİTRİN KARTI (LIVE FORGING BANNER with images.jpg & hammer.png)
+            2. MODÜL SEÇİM KARTLARI (KURUMSAL ENDÜSTRİYEL PANEL)
             ========================================================================= */}
-        <div className="relative mb-10 rounded-2xl overflow-hidden border-2 border-amber-500/40 bg-gradient-to-r from-slate-950 via-zinc-900 to-slate-950 shadow-[0_10px_40px_rgba(245,158,11,0.2)]">
-          {/* Molten Glow Üst Çizgi */}
-          <div className="molten-gradient h-1.5 w-full" />
+        <div>
+          <div className="flex items-center justify-between mb-4 px-1">
+            <h2 className="text-lg font-bold text-gray-200 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-amber-500" />
+              Saha ve Yönetim Modülleri
+            </h2>
+            <span className="text-xs text-gray-500 font-medium">Lütfen çalışmak istediğiniz modülü seçin</span>
+          </div>
 
-          <div className="p-5 md:p-6 flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-5 w-full md:w-auto">
-              {/* Canlı dövme operasyonu resmi */}
-              <div className="relative flex-shrink-0 w-24 h-24 sm:w-28 sm:h-28 rounded-xl overflow-hidden border-2 border-amber-500/60 shadow-[0_0_20px_rgba(249,115,22,0.4)] group">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+            {MODULES.map(({ id, title, subtitle, description, Icon, badge, badgeStyle, iconBg, hoverBorder }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => onSelectApp(id)}
+                className={`group relative cursor-pointer flex flex-col justify-between text-left p-6 rounded-2xl border border-slate-800 bg-slate-900/95 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl ${hoverBorder} overflow-hidden`}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className={`p-3 rounded-xl ${iconBg} shadow-sm transition-transform duration-200 group-hover:scale-105`}>
+                      <Icon className="w-6 h-6" />
+                    </div>
+                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${badgeStyle}`}>
+                      {badge}
+                    </span>
+                  </div>
+
+                  <h3 className="text-lg font-black text-white group-hover:text-amber-400 transition-colors mb-1">
+                    {title}
+                  </h3>
+                  <div className="text-xs font-semibold text-slate-400 mb-2.5">
+                    {subtitle}
+                  </div>
+                  <p className="text-gray-400 text-xs leading-relaxed">
+                    {description}
+                  </p>
+                </div>
+
+                <div className="mt-6 pt-3.5 border-t border-slate-800 flex items-center justify-between text-xs font-bold text-gray-400 group-hover:text-amber-400 transition-colors">
+                  <span>Modüle Git</span>
+                  <span className="transform transition-transform duration-200 group-hover:translate-x-1 font-black text-sm">
+                    →
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* =========================================================================
+            3. PARSAN ÜRETİM GÜCÜ & OPERASYONEL VİTRİN (SIFIR GPU YÜKÜ)
+            ========================================================================= */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between px-1">
+            <h2 className="text-lg font-bold text-gray-200 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-slate-500" />
+              Üretim Hatları ve Yetkinlikler
+            </h2>
+            <span className="text-xs text-gray-500 font-medium">Ağır Sanayi Sıcak Şekillendirme</span>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            {/* Büyük Vitrin: Canlı Hat Operasyonu */}
+            <div className="lg:col-span-2 bg-slate-900/90 rounded-2xl border border-slate-800 p-5 md:p-6 shadow-lg flex flex-col sm:flex-row items-center gap-6 overflow-hidden">
+              <div className="relative flex-shrink-0 w-full sm:w-44 h-36 rounded-xl overflow-hidden border border-slate-700/80 bg-slate-950">
                 <img
                   src={`${baseUrl}content/images.jpg`}
-                  alt="Parsan Dövme Hattı Operasyonu"
-                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-115 filter contrast-125"
+                  alt="Parsan Dövme Pres Hattı"
+                  className="w-full h-full object-cover filter contrast-110"
+                  loading="lazy"
+                  decoding="async"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent flex items-end justify-center pb-1">
-                  <span className="text-[9px] font-black text-amber-300 uppercase tracking-widest flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" />
-                    CANLI
-                  </span>
+                <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/75 border border-slate-700 text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Operasyonel
                 </div>
               </div>
 
-              {/* Başlık ve açıklamalar */}
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/30">
-                    AĞIR SANAYİ DÖVME
-                  </span>
-                  <span className="flex items-center gap-1 text-[11px] text-green-400 font-bold">
-                    <Activity className="w-3.5 h-3.5 animate-pulse" /> Hatlar Aktif
-                  </span>
+              <div className="flex-1 text-left">
+                <div className="inline-block px-2.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-[10px] font-bold uppercase tracking-wider text-amber-400 mb-2">
+                  1000T - 8000T Pres Hatları
                 </div>
-                <h3 className="text-lg md:text-xl font-black text-white">
-                  Şahmerdan & Sıcak Şekillendirme Presleri
+                <h3 className="text-base sm:text-lg font-bold text-white mb-1.5">
+                  Ağır Dövme Çelik ve Sıcak Şekillendirme
                 </h3>
-                <p className="text-gray-400 text-xs sm:text-sm mt-1 max-w-lg">
-                  Krank milleri, ön dingil, direksiyon mafsalı ve havacılık dövme parçaları 5S standartlarında üretilmektedir.
+                <p className="text-gray-400 text-xs sm:text-sm leading-relaxed">
+                  İndüksiyon ısıtma ocakları, mekanik ve hidrolik presler, kontrollü soğutma ve ısıl işlem 
+                  süreçleri 5S ve IATF 16949 standartlarında yürütülmektedir.
                 </p>
               </div>
             </div>
 
-            {/* Sağ taraf: Havada salınan Dövme Çekici & İstatistik */}
-            <div className="flex items-center gap-4 w-full md:w-auto justify-end border-t md:border-t-0 border-slate-800 pt-3 md:pt-0">
-              <div className="relative group cursor-pointer">
-                <img
-                  src={`${baseUrl}content/hammer.png`}
-                  alt="Dövme Çekici"
-                  className="w-20 h-20 object-contain animate-float-reverse drop-shadow-[0_10px_20px_rgba(245,158,11,0.6)] transform -rotate-12 transition-transform group-hover:rotate-0"
-                />
+            {/* Yan Vitrin: Ürün ve Sanayi Grupları */}
+            <div className="bg-slate-900/90 rounded-2xl border border-slate-800 p-5 shadow-lg flex flex-col justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-xl bg-slate-950 border border-slate-800 p-2 flex items-center justify-center flex-shrink-0">
+                  <img
+                    src={`${baseUrl}content/crankshaft.png`}
+                    alt="Krank Mili"
+                    className="max-h-full max-w-full object-contain"
+                    loading="lazy"
+                  />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-white">Krank & Aks Milleri</div>
+                  <div className="text-[11px] text-gray-400">Ağır vasıta & otomotiv güç aktarma dövmeleri</div>
+                </div>
               </div>
-              <div className="bg-slate-900/90 border border-slate-700/80 px-4 py-2.5 rounded-xl text-center shadow-inner">
-                <div className="text-sm font-black text-amber-400 tracking-wider">AĞIR SANAYİ</div>
-                <div className="text-[10px] uppercase font-bold text-gray-400">Dövme ve Şekillendirme</div>
+
+              <div className="border-t border-slate-800/80 pt-3 flex items-center gap-4">
+                <div className="w-14 h-14 rounded-xl bg-slate-950 border border-slate-800 p-2 flex items-center justify-center flex-shrink-0">
+                  <img
+                    src={`${baseUrl}content/airplane.png`}
+                    alt="Havacılık Parçaları"
+                    className="max-h-full max-w-full object-contain"
+                    loading="lazy"
+                  />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-white">Havacılık & Savunma</div>
+                  <div className="text-[11px] text-gray-400">Titanyum ve yüksek mukavemetli alaşım dövme</div>
+                </div>
+              </div>
+
+              <div className="border-t border-slate-800/80 pt-3 flex items-center gap-4">
+                <div className="w-14 h-14 rounded-xl bg-slate-950 border border-slate-800 p-2 flex items-center justify-center flex-shrink-0">
+                  <img
+                    src={`${baseUrl}content/sicak_parca.png`}
+                    alt="Akkor Dövme Çeliği"
+                    className="max-h-full max-w-full object-contain"
+                    loading="lazy"
+                  />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-white">Hassas Kalıp & Isıl İşlem</div>
+                  <div className="text-[11px] text-gray-400">Optimum mikroyapı ve dövme geometrisi</div>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
         {/* =========================================================================
-            MODÜL SEÇİM KARTLARI (THE 4 INDUSTRIAL MODULE CARDS)
+            4. KURUMSAL FOOTER BİLGİSİ
             ========================================================================= */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {MODULES.map(({ id, title, subtitle, description, Icon, accentColor, borderGlow, badge, badgeColor }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => onSelectApp(id)}
-              className={`group relative cursor-pointer flex flex-col justify-between text-left p-6 rounded-2xl border-2 border-slate-700/80 bg-slate-900/90 backdrop-blur-md transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl ${borderGlow} overflow-hidden`}
-            >
-              {/* Kart Arkasındaki Dinamik Gradient Parıltısı */}
-              <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl ${accentColor} opacity-5 group-hover:opacity-20 rounded-bl-full transition-opacity duration-300 blur-xl`} />
-
-              {/* Üst Kısım: İkon ve Rozet */}
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className={`p-3.5 rounded-xl bg-gradient-to-br ${accentColor} text-white shadow-lg transform transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3`}>
-                    <Icon className="w-6 h-6" />
-                  </div>
-                  <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${badgeColor}`}>
-                    {badge}
-                  </span>
-                </div>
-
-                <h3 className="text-xl font-black text-white group-hover:text-amber-400 transition-colors mb-1">
-                  {title}
-                </h3>
-                <div className="text-xs font-bold text-amber-500/90 mb-3">
-                  {subtitle}
-                </div>
-                <p className="text-gray-400 text-xs leading-relaxed">
-                  {description}
-                </p>
-              </div>
-
-              {/* Alt Kısım: Giriş Oku & Eylem */}
-              <div className="mt-6 pt-4 border-t border-slate-800 flex items-center justify-between text-xs font-bold text-gray-400 group-hover:text-amber-400 transition-colors">
-                <span>Modülü Aç</span>
-                <span className="transform transition-transform duration-300 group-hover:translate-x-1 font-black text-sm">
-                  →
-                </span>
-              </div>
-            </button>
-          ))}
-        </div>
-
-        {/* ALT BİLGİ DİPNOTU */}
-        <div className="mt-12 text-center text-xs text-gray-500 dark:text-gray-500 flex items-center justify-center gap-2">
-          <span>PARSAN Makina Parçaları Sanayii A.Ş.</span>
-          <span>•</span>
-          <span className="flex items-center gap-1 text-amber-500/80 font-bold">
-            <Flame className="w-3.5 h-3.5 text-orange-500" /> Dövme Fabrikası 5S İşletim Sistemi
-          </span>
+        <div className="pt-6 pb-2 text-center text-xs text-gray-500 flex flex-col sm:flex-row items-center justify-center gap-2 border-t border-slate-800/80">
+          <span className="font-semibold text-gray-400">PARSAN Makina Parçaları Sanayii A.Ş.</span>
+          <span className="hidden sm:inline">•</span>
+          <span>5S Saha ve Operasyon Yönetim Sistemi</span>
         </div>
 
       </div>
     </div>
   );
 }
+
+export default memo(PortalView);
