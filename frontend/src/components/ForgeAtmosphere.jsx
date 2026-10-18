@@ -17,13 +17,13 @@ import { Shield, Zap, Sparkles, Flame, Hammer } from 'lucide-react';
 function ForgeAtmosphere({ density = 4, showFloatingProps = true }) {
   const baseUrl = import.meta.env.BASE_URL;
 
-  // Ultra hafif mikro-kıvılcımlar (Gölgesiz, saf transform)
+  // Ultra hafif mikro-kıvılcımlar (Kırmızı, turuncu ve altın sıcak dövme renkleri)
   const embers = useMemo(() => {
-    const count = Math.min(density, 5);
+    const count = Math.min(density, 6);
     return Array.from({ length: count }).map((_, i) => {
       const seed = Math.sin((i + 1) * 23.456) * 10000;
       const rand = seed - Math.floor(seed);
-      const color = i % 2 === 0 ? '#f59e0b' : '#ea580c';
+      const color = i % 3 === 0 ? '#ef4444' : i % 3 === 1 ? '#f97316' : '#f59e0b';
       const size = 1.5 + Math.round(rand * 1.5);
       return {
         id: i,
@@ -31,7 +31,7 @@ function ForgeAtmosphere({ density = 4, showFloatingProps = true }) {
         size: `${size}px`,
         delay: `${(rand * 6).toFixed(2)}s`,
         duration: `${(8 + rand * 6).toFixed(2)}s`,
-        opacity: 0.3 + rand * 0.3,
+        opacity: 0.35 + rand * 0.35,
         color,
       };
     });
@@ -42,12 +42,16 @@ function ForgeAtmosphere({ density = 4, showFloatingProps = true }) {
       {/* 1. STATİK TEKNİK ENDÜSTRİYEL IZGARA */}
       <div className="absolute inset-0 bg-industrial-grid opacity-60" />
 
-      {/* 2. STATİK ENDÜSTRİYEL FIRIN AMBİYANSI (Saf gradient, sıfır blur) */}
+      {/* 2. STATİK SICAK DÖVME FIRINI & KOR KIRMIZISI AMBİYANSI (Saf gradient, sıfır blur filtresi) */}
       <div
         className="absolute inset-0"
         style={{
-          background:
-            'radial-gradient(ellipse 70% 35% at 50% -5%, rgba(217, 119, 6, 0.07) 0%, rgba(180, 83, 9, 0.02) 50%, transparent 80%), radial-gradient(ellipse 50% 30% at 85% 105%, rgba(234, 88, 12, 0.04) 0%, transparent 70%)',
+          background: [
+            'radial-gradient(circle 600px at 15% 12%, rgba(220, 38, 38, 0.17) 0%, rgba(234, 88, 12, 0.09) 40%, transparent 75%)',
+            'radial-gradient(circle 750px at 85% 88%, rgba(185, 28, 28, 0.20) 0%, rgba(239, 68, 68, 0.11) 35%, rgba(245, 158, 11, 0.04) 60%, transparent 80%)',
+            'radial-gradient(ellipse 900px 500px at 50% 50%, rgba(234, 88, 12, 0.07) 0%, rgba(220, 38, 38, 0.04) 45%, transparent 75%)',
+            'radial-gradient(ellipse 100% 35% at 50% 100%, rgba(185, 28, 28, 0.15) 0%, rgba(220, 38, 38, 0.06) 50%, transparent 85%)',
+          ].join(', '),
         }}
       />
 
