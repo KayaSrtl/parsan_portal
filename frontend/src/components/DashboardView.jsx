@@ -13,24 +13,31 @@ import {
 import {
   AREAS,
   DEPARTMENTS,
+  DEFECT_CARD_TYPES,
+  DEFECT_CARD_TYPE_OPTIONS,
   OPTION_CLASS,
   STATUS,
   STATUS_OPTIONS,
   isSuperAdmin,
 } from '../lib/constants';
 import { fileUrl } from '../lib/api';
-import { openDatePicker } from '../lib/datePicker';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { useToast } from '../hooks/useToast';
 import ConfirmDialog from './ui/ConfirmDialog';
 import Toast from './ui/Toast';
 
+const getOneWeekLaterDate = () => {
+  const d = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  return d.toISOString().split('T')[0];
+};
+
 const EMPTY_FORM = {
   problem_tanimi: '',
   planlanan_aksiyon: '',
   gelisme_notlari: '',
-  mevcut_durum: STATUS.RED,
-  hedef_tarih: '',
+  hata_karti_turu: DEFECT_CARD_TYPES.RED,
+  mevcut_durum: STATUS.OPEN,
+  hedef_tarih: getOneWeekLaterDate(),
   bildirilen_alan: '',
   bildiren_bolum: '',
   ilgili_bolum: '',
@@ -40,8 +47,16 @@ const issueToForm = (issue) => ({
   problem_tanimi: issue.problem_tanimi || '',
   planlanan_aksiyon: issue.planlanan_aksiyon || '',
   gelisme_notlari: issue.gelisme_notlari || '',
-  mevcut_durum: issue.mevcut_durum || STATUS.RED,
-  hedef_tarih: toInputDate(issue.hedef_tarih),
+  hata_karti_turu:
+    issue.hata_karti_turu ||
+    (issue.mevcut_durum === 'Sarı' ? DEFECT_CARD_TYPES.YELLOW : DEFECT_CARD_TYPES.RED),
+  mevcut_durum:
+    issue.mevcut_durum === 'Yeşil'
+      ? STATUS.CLOSED
+      : issue.mevcut_durum === 'Kırmızı' || issue.mevcut_durum === 'Sarı'
+        ? STATUS.OPEN
+        : issue.mevcut_durum || STATUS.OPEN,
+  hedef_tarih: toInputDate(issue.hedef_tarih) || getOneWeekLaterDate(),
   bildirilen_alan: (issue.bildirilen_alan || '').toUpperCase(),
   bildiren_bolum: issue.bildiren_bolum || '',
   ilgili_bolum: issue.ilgili_bolum || '',
@@ -509,67 +524,63 @@ export default function DashboardView({
 
               <div>
                 <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase mb-1">
-                  Hedef Tarih
+                  Hata Kartı Türü
                 </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    readOnly
-                    placeholder="Tarih Seçin (GG.AA.YYYY)"
-                    className="block w-full border border-gray-300 dark:border-slate-500 bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 rounded-md shadow-sm p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none font-medium cursor-pointer"
-                    value={toDisplayDate(formData.hedef_tarih)}
-                    onClick={() => openDatePicker(datePickerRef.current)}
-                  />
-                  {/* Görsel olarak gizli ama erişilebilir kalan gerçek tarih alanı.
-                      showPicker desteklenmeyen tarayıcılarda buraya odaklanılır. */}
-                  <input
-                    ref={datePickerRef}
-                    type="date"
-                    aria-label="Hedef tarih"
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    value={formData.hedef_tarih || ''}
-                    onChange={(e) => handleFormChange('hedef_tarih', e.target.value)}
-                    onBlur={handleBlur}
-                  />
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 dark:text-gray-400">
-                    <svg
-                      width="20"
-                      height="20"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                      <line x1="16" y1="2" x2="16" y2="6" />
-                      <line x1="8" y1="2" x2="8" y2="6" />
-                      <line x1="3" y1="10" x2="21" y2="10" />
-                    </svg>
-                  </div>
-                </div>
+                <select
+                  className={`w-full rounded-md shadow-sm p-2.5 font-bold cursor-pointer outline-none border border-gray-300 dark:border-slate-500 focus:ring-2 focus:ring-amber-500 ${getStatusColor(formData.hata_karti_turu)}`}
+                  value={formData.hata_karti_turu}
+                  onBlur={handleBlur}
+                  onChange={(e) => handleFormChange('hata_karti_turu', e.target.value)}
+                >
+                  {DEFECT_CARD_TYPE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value} className={OPTION_CLASS}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase mb-1">
-                  Mevcut Durum
+                  Mevcut Durum (Takip)
                 </label>
                 <select
-                  className={`w-full rounded-md shadow-sm p-2.5 font-bold cursor-pointer outline-none border border-gray-300 dark:border-slate-500 focus:ring-2 focus:ring-blue-500 ${getStatusColor(formData.mevcut_durum)}`}
+                  className={`w-full rounded-md shadow-sm p-2.5 font-bold cursor-pointer outline-none border border-gray-300 dark:border-slate-500 focus:ring-2 focus:ring-amber-500 ${getStatusColor(formData.mevcut_durum)}`}
                   value={formData.mevcut_durum}
                   onBlur={handleBlur}
                   onChange={(e) => handleFormChange('mevcut_durum', e.target.value)}
                 >
                   {STATUS_OPTIONS.map((option) => (
-                    <option
-                      key={option.value}
-                      value={option.value}
-                      className="bg-white dark:bg-slate-800 text-black dark:text-white font-semibold"
-                    >
+                    <option key={option.value} value={option.value} className={OPTION_CLASS}>
                       {option.label}
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase mb-1 flex items-center justify-between">
+                  <span>Hedef Tarih (Termin)</span>
+                  <span className="text-[11px] text-emerald-400 font-semibold normal-case">
+                    {isNew ? 'Varsayılan: 1 Hafta (7 Gün)' : 'Termin Tarihi'}
+                  </span>
+                </label>
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="date"
+                    className="flex-1 border border-gray-300 dark:border-slate-500 bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 rounded-md shadow-sm p-2.5 focus:ring-2 focus:ring-amber-500 focus:outline-none font-medium cursor-pointer [color-scheme:light] dark:[color-scheme:dark]"
+                    value={formData.hedef_tarih || ''}
+                    onChange={(e) => handleFormChange('hedef_tarih', e.target.value)}
+                    onBlur={handleBlur}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleFormChange('hedef_tarih', getOneWeekLaterDate())}
+                    className="px-3 py-2.5 text-xs font-bold bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-md text-amber-500 border border-slate-300 dark:border-slate-600 cursor-pointer"
+                  >
+                    +1 Hafta
+                  </button>
+                </div>
               </div>
             </div>
 

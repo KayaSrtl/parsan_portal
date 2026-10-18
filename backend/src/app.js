@@ -9,6 +9,8 @@ const issueRoutes = require('./routes/issues.routes');
 const actionRoutes = require('./routes/actions.routes');
 const auditRoutes = require('./routes/audits.routes');
 const notificationRoutes = require('./routes/notifications.routes');
+const safetyRoutes = require('./routes/safety.routes');
+const maintenanceRoutes = require('./routes/maintenance.routes');
 
 const app = express();
 
@@ -35,6 +37,8 @@ app.use('/api/issues', issueRoutes);
 app.use('/api/actions', actionRoutes);
 app.use('/api/audits', auditRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/safety', safetyRoutes);
+app.use('/api/maintenance', maintenanceRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

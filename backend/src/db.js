@@ -96,9 +96,42 @@ async function createTables() {
     FOREIGN KEY(user_id) REFERENCES users(id)
   )`);
 
+  await run(`CREATE TABLE IF NOT EXISTS safety_reports (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    type TEXT NOT NULL, -- 'Risk Bildirimi' | 'Ramak Kala'
+    alan TEXT NOT NULL,
+    bolum TEXT,
+    risk_derecesi TEXT DEFAULT 'Orta', -- 'Düşük' | 'Orta' | 'Yüksek' | 'Kritik'
+    tanim TEXT NOT NULL,
+    onlem TEXT,
+    bildiren_kisi TEXT NOT NULL,
+    tarih TEXT NOT NULL,
+    durum TEXT DEFAULT 'İnceleniyor', -- 'İnceleniyor' | 'Önlem Alındı' | 'Kapatıldı'
+    fotograf_url TEXT,
+    user_id INTEGER
+  )`);
+
+  await run(`CREATE TABLE IF NOT EXISTS maintenances (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tezgah_no TEXT NOT NULL,
+    vardiya TEXT NOT NULL,
+    operator_name TEXT NOT NULL,
+    tarih TEXT NOT NULL,
+    item1_val TEXT,
+    item1_status TEXT,
+    item1_foto TEXT,
+    item2_status TEXT,
+    item2_note TEXT,
+    item3_status TEXT,
+    item3_foto TEXT,
+    user_id INTEGER
+  )`);
+
   await run('CREATE INDEX IF NOT EXISTS idx_issues_user ON issues(user_id)');
   await run('CREATE INDEX IF NOT EXISTS idx_actions_assignee ON actions(assignee_name)');
   await run('CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id)');
+  await run('CREATE INDEX IF NOT EXISTS idx_safety_type ON safety_reports(type)');
+  await run('CREATE INDEX IF NOT EXISTS idx_maintenances_tezgah ON maintenances(tezgah_no)');
 }
 
 // --- Migrasyonlar ------------------------------------------------------------
@@ -113,6 +146,18 @@ async function addColumnIfMissing(table, column, definition) {
 
 async function migrate() {
   await addColumnIfMissing('actions', 'sub_actions', "TEXT DEFAULT '[]'");
+  await addColumnIfMissing('actions', 'issue_id', 'INTEGER');
+  await addColumnIfMissing('issues', 'hata_karti_turu', "TEXT DEFAULT 'Kırmızı Hata Kartı'");
+
+  // Mevcut kayıtların durum/tür alanlarını yeni modele uyumlu hale getir
+  try {
+    await run(`UPDATE issues SET hata_karti_turu = 'Kırmızı Hata Kartı' WHERE hata_karti_turu IS NULL OR hata_karti_turu = ''`);
+    await run(`UPDATE issues SET hata_karti_turu = 'Sarı Hata Kartı' WHERE mevcut_durum = 'Sarı'`);
+    await run(`UPDATE issues SET mevcut_durum = 'Kapalı' WHERE mevcut_durum = 'Yeşil'`);
+    await run(`UPDATE issues SET mevcut_durum = 'Açık' WHERE mevcut_durum IN ('Kırmızı', 'Sarı')`);
+  } catch (err) {
+    console.warn('[db] Migration veri dönüşüm uyarısı:', err.message);
+  }
 }
 
 // --- Örnek veri --------------------------------------------------------------

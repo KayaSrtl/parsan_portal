@@ -45,4 +45,18 @@ const upload = multer({
 /** Tek resim alani ('image') için hazır middleware. */
 const singleImage = upload.single('image');
 
-module.exports = { upload, singleImage, safeName, ALLOWED_MIME };
+const maintenanceImages = multer({
+  storage,
+  limits: { fileSize: config.MAX_UPLOAD_BYTES, files: 2 },
+  fileFilter: (req, file, cb) => {
+    if (ALLOWED_MIME.has(file.mimetype)) return cb(null, true);
+    const err = new Error('Sadece resim dosyası yükleyebilirsiniz');
+    err.status = 400;
+    cb(err);
+  },
+}).fields([
+  { name: 'item1_foto', maxCount: 1 },
+  { name: 'item3_foto', maxCount: 1 },
+]);
+
+module.exports = { upload, singleImage, maintenanceImages, safeName, ALLOWED_MIME };

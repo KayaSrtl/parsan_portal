@@ -7,10 +7,12 @@ import { useToast } from '../hooks/useToast';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { openDatePicker } from '../lib/datePicker';
 import { ACTION_STATUS, OPTION_CLASS, isManager, isSuperAdmin } from '../lib/constants';
-import { formatDate, toDisplayDate, toInputDate } from '../utils/helpers';
+import { formatDate, formatDateTime, parseNotes, toDisplayDate, toInputDate } from '../utils/helpers';
 import ConfirmDialog from './ui/ConfirmDialog';
 import Toast from './ui/Toast';
 import PortalBackButton from './ui/PortalBackButton';
+
+const INITIAL_SUB_ACTIONS = [{ title: 'Hedef Tanımlamak', weight: 100, completed: false }];
 
 const EMPTY_FORM = {
   assignee_name: '',
@@ -18,7 +20,7 @@ const EMPTY_FORM = {
   target_date: '',
   progress: 0,
   status: ACTION_STATUS.OPEN,
-  sub_actions: [],
+  sub_actions: INITIAL_SUB_ACTIONS,
 };
 
 const toInt = (value) => {
@@ -68,6 +70,7 @@ export default function ActionModule({ onBack, currentUser }) {
   const [view, setView] = useState('list'); // 'list' | 'form'
   const [currentAction, setCurrentAction] = useState(null);
   const [formData, setFormData] = useState(EMPTY_FORM);
+  const [newIssueNote, setNewIssueNote] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
@@ -83,8 +86,14 @@ export default function ActionModule({ onBack, currentUser }) {
   const canManage = isManager(currentUser);
   const isEditing = Boolean(currentAction);
 
+  // Hedef tarih düzenleme yetkisi: Yönetici her zaman, atanan kişi ise hedef tarih boşsa (1 kereliğine)
+  const canEditTargetDate =
+    canManage ||
+    !currentAction?.target_date ||
+    currentAction?.target_date.trim() === '';
+
   const handleSave = useCallback(
-    async ({ silent = false } = {}) => {
+    async ({ silent = false, extraPayload = {} } = {}) => {
       if (savingRef.current) return false;
 
       if (!formData.action_content?.trim()) {
@@ -99,11 +108,15 @@ export default function ActionModule({ onBack, currentUser }) {
       savingRef.current = true;
       setIsSaving(true);
       try {
+        const payload = { ...formData, ...extraPayload };
         if (currentAction) {
-          await updateAction(currentAction.id, formData);
+          const res = await updateAction(currentAction.id, payload);
+          if (res?.action) {
+            setCurrentAction(res.action);
+          }
         } else {
-          const created = await addAction(formData);
-          setCurrentAction({ id: created.id, ...formData });
+          const created = await addAction(payload);
+          setCurrentAction({ id: created.id, ...payload });
         }
         setIsDirty(false);
         if (!silent) showToast('Aksiyon kaydedildi.');
@@ -119,6 +132,23 @@ export default function ActionModule({ onBack, currentUser }) {
     [formData, currentAction, canManage, addAction, updateAction, showToast]
   );
 
+  const handleAddIssueNote = async () => {
+    if (!newIssueNote.trim() || !currentAction?.id) return;
+    try {
+      const res = await updateAction(currentAction.id, {
+        ...formData,
+        new_note: newIssueNote.trim(),
+      });
+      if (res?.action) {
+        setCurrentAction(res.action);
+      }
+      setNewIssueNote('');
+      showToast('Gelişme notu hata kartına başarıyla eklendi.');
+    } catch (err) {
+      showToast('Not eklenemedi: ' + err.message, true);
+    }
+  };
+
   // Sadece MEVCUT bir aksiyon düzenlenirken otomatik kayıt yap. Yeni aksiyon
   // için açıkça "Kaydet" gerekir; aksi halde yarım kalmış taslaklar oluşuyordu.
   useUnsavedChanges(isDirty && isEditing, () => handleSave({ silent: true }));
@@ -130,13 +160,19 @@ export default function ActionModule({ onBack, currentUser }) {
         ? {
             assignee_name: action.assignee_name || '',
             action_content: action.action_content || '',
-            target_date: toInputDate(action.target_date),
+            target_date:
+              toInputDate(action.target_date) ||
+              (action.target_date ? String(action.target_date).split('T')[0] : ''),
             progress: action.progress || 0,
             status: action.status || ACTION_STATUS.OPEN,
-            sub_actions: Array.isArray(action.sub_actions) ? action.sub_actions : [],
+            sub_actions:
+              Array.isArray(action.sub_actions) && action.sub_actions.length > 0
+                ? action.sub_actions
+                : INITIAL_SUB_ACTIONS,
           }
         : EMPTY_FORM
     );
+    setNewIssueNote('');
     setIsDirty(false);
     setView('form');
   };
@@ -418,46 +454,33 @@ export default function ActionModule({ onBack, currentUser }) {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">
-                  Hedef Tarih
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    readOnly
-                    placeholder="Tarih Seçin (GG.AA.YYYY)"
-                    disabled={!canManage}
-                    className={`${inputClass} cursor-pointer ${readOnlyClass}`}
-                    value={toDisplayDate(formData.target_date)}
-                    onClick={() => canManage && openDatePicker(datePickerRef.current)}
-                  />
-                  {canManage && (
-                    <input
-                      ref={datePickerRef}
-                      type="date"
-                      aria-label="Hedef tarih"
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      value={formData.target_date || ''}
-                      onChange={(e) => handleFormChange('target_date', e.target.value)}
-                      onBlur={handleBlur}
-                    />
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1 flex items-center justify-between">
+                  <span>Hedef Tarih</span>
+                  {!canManage && canEditTargetDate && (
+                    <span className="text-[11px] text-amber-400 font-semibold normal-case">1 Kerelik Tanımlama</span>
                   )}
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 dark:text-gray-400">
-                    <svg
-                      width="20"
-                      height="20"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
+                </label>
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="date"
+                    disabled={!canEditTargetDate}
+                    className={`flex-1 ${inputClass} ${canEditTargetDate ? 'cursor-pointer' : 'opacity-70 cursor-not-allowed'} [color-scheme:light] dark:[color-scheme:dark]`}
+                    value={formData.target_date || ''}
+                    onChange={(e) => handleFormChange('target_date', e.target.value)}
+                    onBlur={handleBlur}
+                  />
+                  {canEditTargetDate && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+                        handleFormChange('target_date', d);
+                      }}
+                      className="px-3 py-3 text-xs font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30 rounded-xl cursor-pointer whitespace-nowrap"
                     >
-                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                      <line x1="16" y1="2" x2="16" y2="6" />
-                      <line x1="8" y1="2" x2="8" y2="6" />
-                      <line x1="3" y1="10" x2="21" y2="10" />
-                    </svg>
-                  </div>
+                      +1 Hafta
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -564,6 +587,71 @@ export default function ActionModule({ onBack, currentUser }) {
                 </p>
               )}
             </div>
+
+            {/* Bağlı Hata Kartı ve Gelişme Notları */}
+            {currentAction?.issue_id && (
+              <div className="bg-slate-900/90 p-5 rounded-2xl border border-slate-700/80 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                    <h3 className="font-bold text-white text-sm">
+                      Bağlı Hata Kartı Gelişme Notları (ID #{currentAction.issue_id})
+                    </h3>
+                  </div>
+                  {currentAction.hata_karti_turu && (
+                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-rose-500/15 text-rose-300 border border-rose-500/30">
+                      {currentAction.hata_karti_turu}
+                    </span>
+                  )}
+                </div>
+
+                <div className="max-h-60 overflow-y-auto space-y-2.5 pr-1">
+                  {parseNotes(currentAction.issue_notes).length === 0 ? (
+                    <div className="text-xs text-gray-500 italic py-2">
+                      Bu hata kartına henüz gelişme notu eklenmemiş.
+                    </div>
+                  ) : (
+                    parseNotes(currentAction.issue_notes).map((note, nIdx) => (
+                      <div
+                        key={nIdx}
+                        className="bg-slate-800/80 border border-slate-700/60 rounded-xl p-3 text-xs"
+                      >
+                        <div className="flex justify-between items-center text-[10px] text-gray-400 mb-1">
+                          <span className="font-bold text-amber-400">{note.sender || 'Kullanıcı'}</span>
+                          <span>{formatDateTime(note.timestamp)}</span>
+                        </div>
+                        <p className="text-gray-200 leading-relaxed whitespace-pre-wrap">{note.text}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Yeni Not Ekleme */}
+                <div className="flex gap-2 pt-2 border-t border-slate-800">
+                  <input
+                    type="text"
+                    placeholder="Hata kartına yeni aksiyon notu ekleyin..."
+                    className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder:text-gray-500 focus:outline-none focus:border-amber-500"
+                    value={newIssueNote}
+                    onChange={(e) => setNewIssueNote(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddIssueNote();
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddIssueNote}
+                    disabled={!newIssueNote.trim()}
+                    className="px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl cursor-pointer transition-all"
+                  >
+                    Notu Gönder
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="bg-gray-50 dark:bg-slate-700/50 p-4 rounded-lg border border-gray-200 dark:border-slate-600">
               <div className="flex justify-between text-sm font-bold text-gray-700 dark:text-gray-300 mb-4">

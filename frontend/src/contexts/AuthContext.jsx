@@ -50,9 +50,47 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  const guestLogin = useCallback(async (name) => {
+    const trimmed = String(name || '').trim();
+    if (!trimmed) {
+      return { success: false, error: 'Operatör Adı ve Soyadı girilmesi zorunludur' };
+    }
+
+    try {
+      const data = await apiFetch('/guest-login', {
+        method: 'POST',
+        auth: false,
+        body: { name: trimmed },
+      });
+      localStorage.setItem(TOKEN_KEY, data.token);
+      localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+      setToken(data.token);
+      setUser(data.user);
+      setSessionMessage('');
+      return { success: true };
+    } catch {
+      // Çevrimdışı veya statik sunucuda çalışabilmesi için yerel misafir token'ı üret
+      const guestId = `guest_${Date.now()}`;
+      const guestUser = {
+        id: guestId,
+        name: trimmed,
+        email: '',
+        role: 'misafir',
+        isGuest: true,
+      };
+      const guestToken = `guest_token_${Date.now()}`;
+      localStorage.setItem(TOKEN_KEY, guestToken);
+      localStorage.setItem(USER_KEY, JSON.stringify(guestUser));
+      setToken(guestToken);
+      setUser(guestUser);
+      setSessionMessage('');
+      return { success: true };
+    }
+  }, []);
+
   const value = useMemo(
-    () => ({ user, token, login, logout, sessionMessage }),
-    [user, token, login, logout, sessionMessage]
+    () => ({ user, token, login, guestLogin, logout, sessionMessage }),
+    [user, token, login, guestLogin, logout, sessionMessage]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -20,6 +20,7 @@ const EDITABLE_FIELDS = [
   'planlanan_aksiyon',
   'mevcut_durum',
   'gelisme_notlari',
+  'hata_karti_turu',
 ];
 
 const serialize = (row) => ({ ...row, revizyon_gecmisi: parseArray(row.revizyon_gecmisi) });
@@ -27,12 +28,8 @@ const serialize = (row) => ({ ...row, revizyon_gecmisi: parseArray(row.revizyon_
 router.get(
   '/',
   asyncHandler(async (req, res) => {
-    const rows = isManager(req.user)
-      ? await all('SELECT * FROM issues ORDER BY bildirim_zamani DESC')
-      : await all('SELECT * FROM issues WHERE user_id = ? ORDER BY bildirim_zamani DESC', [
-          req.user.id,
-        ]);
-
+    // Saha ve operasyonel takip paneli için tüm açık/kapalı kayıtlar listelenebilir
+    const rows = await all('SELECT * FROM issues ORDER BY bildirim_zamani DESC');
     res.json(rows.map(serialize));
   })
 );
@@ -44,33 +41,73 @@ router.post(
     const data = req.body || {};
 
     if (!data.problem_tanimi?.trim()) {
-      return res.status(400).json({ error: 'Problem tanimi zorunludur' });
+      return res.status(400).json({ error: 'Problem tanımı zorunludur' });
     }
+
+    // Termin varsayılan olarak 1 hafta (7 gün)
+    const defaultTargetDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const finalTargetDate = data.hedef_tarih
+      ? new Date(data.hedef_tarih).toISOString()
+      : defaultTargetDate;
+
+    const cardType = data.hata_karti_turu || 'Kırmızı Hata Kartı';
+    const status = data.mevcut_durum || 'Açık';
 
     const { lastID } = await run(
       `INSERT INTO issues (
         user_id, bildirilen_alan, problem_tanimi, bildiren_kisi, bildiren_bolum, ilgili_bolum,
         bildirim_zamani, hedef_tarih, planlanan_aksiyon, mevcut_durum, gelisme_notlari,
-        fotograf_url, revizyon_gecmisi
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        fotograf_url, revizyon_gecmisi, hata_karti_turu
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        req.user.id,
+        req.user.id || 0,
         data.bildirilen_alan || '',
         data.problem_tanimi.trim(),
-        req.user.name,
+        req.user.name || 'Saha Operatörü',
         data.bildiren_bolum || '',
         data.ilgili_bolum || '',
         new Date().toISOString(),
-        data.hedef_tarih || '',
+        finalTargetDate,
         data.planlanan_aksiyon || '',
-        data.mevcut_durum || 'Kırmızı',
+        status,
         data.gelisme_notlari || '',
         req.file ? `/uploads/${req.file.filename}` : '',
         '[]',
+        cardType,
       ]
     );
 
-    res.status(201).json({ id: lastID, message: 'Başarıyla eklendi' });
+    // Açılan hata kartı ilgili bölüm yöneticisine otomatik aksiyon modülüne düşer.
+    // İlk aksiyonu 'Hedef Tanımlamak' olur.
+    try {
+      const assignee = data.ilgili_bolum
+        ? `${data.ilgili_bolum} Yöneticisi`
+        : 'İlgili Bölüm Sorumlusu';
+      const areaPrefix = data.bildirilen_alan ? `[${data.bildirilen_alan.toUpperCase()}] ` : '';
+      const actionContent = `${areaPrefix}${cardType} #${lastID}: ${data.problem_tanimi.trim()}`;
+      const initialSubs = JSON.stringify([
+        { title: 'Hedef Tanımlamak', weight: 100, completed: false },
+      ]);
+
+      await run(
+        `INSERT INTO actions
+          (user_id, assignee_name, action_content, target_date, progress, status, created_at, sub_actions, issue_id)
+         VALUES (?, ?, ?, ?, 0, 'Açık', ?, ?, ?)`,
+        [
+          req.user.id || 0,
+          assignee,
+          actionContent,
+          finalTargetDate,
+          new Date().toISOString(),
+          initialSubs,
+          lastID,
+        ]
+      );
+    } catch (actErr) {
+      console.warn('[issues] Otomatik aksiyon oluşturma uyarısı:', actErr.message);
+    }
+
+    res.status(201).json({ id: lastID, message: 'Başarıyla eklendi ve ilgili aksiyon oluşturuldu' });
   })
 );
 

@@ -32,7 +32,7 @@ Thumbs.db
 
 # Dağıtım verisi (veritabanı, yüklemeler)
 data/
-tunnel/credentials.json
+tunnel/
 
 # Dağıtım betikleri (içinde gizli dağıtım anahtarı barındırır)
 deploy.sh

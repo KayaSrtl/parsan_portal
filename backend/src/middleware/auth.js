@@ -5,6 +5,7 @@ const ROLES = {
   STANDARD: 'standart',
   ADMIN: 'admin',
   SUPER_ADMIN: 'super_admin',
+  GUEST: 'misafir',
 };
 
 const ALL_ROLES = Object.values(ROLES);

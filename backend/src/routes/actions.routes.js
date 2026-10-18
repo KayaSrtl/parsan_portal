@@ -33,11 +33,19 @@ const serialize = (row) => ({ ...row, sub_actions: parseArray(row.sub_actions) }
 router.get(
   '/',
   asyncHandler(async (req, res) => {
-    const rows = isManager(req.user)
-      ? await all('SELECT * FROM actions ORDER BY id DESC')
-      : await all('SELECT * FROM actions WHERE assignee_name = ? ORDER BY id DESC', [
-          req.user.name,
-        ]);
+    const query = isManager(req.user)
+      ? `SELECT a.*, i.gelisme_notlari AS issue_notes, i.hata_karti_turu, i.fotograf_url AS issue_photo, i.bildiren_kisi AS issue_reporter
+         FROM actions a
+         LEFT JOIN issues i ON a.issue_id = i.id
+         ORDER BY a.id DESC`
+      : `SELECT a.*, i.gelisme_notlari AS issue_notes, i.hata_karti_turu, i.fotograf_url AS issue_photo, i.bildiren_kisi AS issue_reporter
+         FROM actions a
+         LEFT JOIN issues i ON a.issue_id = i.id
+         WHERE a.assignee_name = ? OR a.assignee_name LIKE ?
+         ORDER BY a.id DESC`;
+
+    const params = isManager(req.user) ? [] : [req.user.name, `%${req.user.name}%`];
+    const rows = await all(query, params);
 
     res.json(rows.map(serialize));
   })
@@ -47,7 +55,7 @@ router.post(
   '/',
   requireRole(...MANAGER_ROLES),
   asyncHandler(async (req, res) => {
-    const { assignee_name, action_content, target_date, progress, sub_actions } = req.body || {};
+    const { assignee_name, action_content, target_date, progress, sub_actions, issue_id } = req.body || {};
 
     if (!action_content?.trim()) {
       return res.status(400).json({ error: 'Aksiyon içeriği zorunludur' });
@@ -61,8 +69,8 @@ router.post(
 
     const { lastID } = await run(
       `INSERT INTO actions
-        (user_id, assignee_name, action_content, target_date, progress, status, created_at, sub_actions)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        (user_id, assignee_name, action_content, target_date, progress, status, created_at, sub_actions, issue_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         req.user.id,
         assignee_name.trim(),
@@ -72,6 +80,7 @@ router.post(
         finalProgress === 100 ? STATUS_DONE : STATUS_OPEN,
         new Date().toISOString(),
         JSON.stringify(subs),
+        issue_id || null,
       ]
     );
 
@@ -89,8 +98,14 @@ router.put(
     if (!existing) return res.status(404).json({ error: 'Aksiyon bulunamadı' });
 
     const manager = isManager(req.user);
-    // Sorumlu kişi kendi aksiyonunun ilerlemesini işaretleyebilir ama içeriği/atamayi değiştiremez.
-    if (!manager && existing.assignee_name !== req.user.name) {
+    // Sorumlu kişi kendi aksiyonunun ilerlemesini ve 1 kerelik hedef tarihini girebilir.
+    const isAssignee = existing.assignee_name && (
+      existing.assignee_name === req.user.name ||
+      existing.assignee_name.includes(req.user.name) ||
+      req.user.name.includes(existing.assignee_name)
+    );
+
+    if (!manager && !isAssignee) {
       return res.status(403).json({ error: 'Bu aksiyonu güncelleme yetkiniz yok' });
     }
 
@@ -99,7 +114,11 @@ router.put(
 
     const assignee = manager && body.assignee_name ? body.assignee_name.trim() : existing.assignee_name;
     const content = manager && body.action_content ? body.action_content.trim() : existing.action_content;
-    const targetDate = manager && body.target_date !== undefined ? body.target_date : existing.target_date;
+
+    // Hedef tarih: Yönetici değiştirebilir veya hedef tarih henüz yoksa sorumlu kişi 1 kereliğine tanımlayabilir
+    const canSetTargetDate = manager || !existing.target_date || existing.target_date.trim() === '';
+    const targetDate =
+      canSetTargetDate && body.target_date !== undefined ? body.target_date : existing.target_date;
 
     const finalProgress = deriveProgress(subs, body.progress ?? existing.progress);
     const status = finalProgress === 100 ? STATUS_DONE : STATUS_OPEN;
@@ -111,7 +130,34 @@ router.put(
       [assignee, content, targetDate, finalProgress, status, JSON.stringify(subs), actionId]
     );
 
-    const updated = await get('SELECT * FROM actions WHERE id = ?', [actionId]);
+    // Eğer bağlı bir hata kartı varsa ve yeni bir gelişme notu gönderildiyse hata kartına işle
+    if (existing.issue_id && body.new_note?.trim()) {
+      try {
+        const linkedIssue = await get('SELECT gelisme_notlari FROM issues WHERE id = ?', [existing.issue_id]);
+        if (linkedIssue) {
+          const notes = parseArray(linkedIssue.gelisme_notlari);
+          notes.push({
+            text: `[Aksiyon Notu] ${body.new_note.trim()}`,
+            sender: req.user.name || 'Aksiyon Sorumlusu',
+            timestamp: new Date().toISOString(),
+          });
+          await run('UPDATE issues SET gelisme_notlari = ? WHERE id = ?', [
+            JSON.stringify(notes),
+            existing.issue_id,
+          ]);
+        }
+      } catch (noteErr) {
+        console.warn('[actions] Not senkronizasyon uyarısı:', noteErr.message);
+      }
+    }
+
+    const updated = await get(
+      `SELECT a.*, i.gelisme_notlari AS issue_notes, i.hata_karti_turu, i.fotograf_url AS issue_photo, i.bildiren_kisi AS issue_reporter
+       FROM actions a
+       LEFT JOIN issues i ON a.issue_id = i.id
+       WHERE a.id = ?`,
+      [actionId]
+    );
     res.json({ message: 'Aksiyon güncellendi', action: serialize(updated) });
   })
 );

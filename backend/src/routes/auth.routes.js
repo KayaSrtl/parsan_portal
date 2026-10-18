@@ -37,6 +37,29 @@ router.post(
   })
 );
 
+router.post(
+  '/guest-login',
+  asyncHandler(async (req, res) => {
+    const { name } = req.body || {};
+    const trimmed = String(name || '').trim();
+    if (!trimmed) {
+      return res.status(400).json({ error: 'Operatör Adı ve Soyadı girilmesi zorunludur' });
+    }
+
+    const guestId = Math.floor(Date.now() / 1000);
+    const token = jwt.sign(
+      { id: guestId, role: 'misafir', name: trimmed, isGuest: true },
+      config.JWT_SECRET,
+      { expiresIn: config.TOKEN_TTL || '30d' }
+    );
+
+    res.json({
+      token,
+      user: { id: guestId, name: trimmed, email: '', role: 'misafir', isGuest: true },
+    });
+  })
+);
+
 /** Token geçerliliğini kontrol etmek için hafif uc nokta. */
 router.get('/me', authenticateToken, asyncHandler(async (req, res) => {
   const user = await get('SELECT id, name, email, role FROM users WHERE id = ?', [req.user.id]);

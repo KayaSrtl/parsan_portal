@@ -14,6 +14,7 @@ import SettingsView from './components/SettingsView';
 import ActionModule from './components/ActionModule';
 import AuditModule from './components/AuditModule';
 import MaintenanceModule from './components/MaintenanceModule';
+import SafetyModule from './components/SafetyModule';
 import ForgeAtmosphere from './components/ForgeAtmosphere';
 import MessageBox from './components/MessageBox';
 import PortalBackButton from './components/ui/PortalBackButton';
@@ -34,6 +35,7 @@ const APPS = {
   ACTIONS: 'aksiyon_modulu',
   AUDIT: 'bes_s_denetim',
   MAINTENANCE: 'otonom_bakim',
+  SAFETY: 'isg_risk_bildirimi',
 };
 
 const TABS = {
@@ -49,6 +51,7 @@ const APP_TITLES = {
   [APPS.ACTIONS]: 'Aksiyon Modülü',
   [APPS.AUDIT]: '5S Denetim Modülü',
   [APPS.MAINTENANCE]: 'Otonom Bakım Modülü',
+  [APPS.SAFETY]: 'İSG Risk Bildirimi',
 };
 
 export default function App() {
@@ -224,26 +227,27 @@ function MainApp({ user }) {
             )}
 
             {currentApp === APPS.ISSUES && [
-              navButton('Açık Problemler', TABS.OPEN, 'bg-amber-600 text-white shadow-sm'),
-              navButton('Çözülmüş Problemler', TABS.RESOLVED, 'bg-emerald-600 text-white shadow-sm'),
-              navButton('İstatistikler', TABS.ANALYTICS, 'bg-purple-600 text-white shadow-sm'),
+              navButton('Hata Kartları Takip Paneli', TABS.OPEN, 'bg-rose-500/20 text-rose-300 border border-rose-500/30 shadow-sm'),
+              navButton('İstatistikler', TABS.ANALYTICS, 'bg-purple-500/20 text-purple-300 border border-purple-500/30 shadow-sm'),
             ]}
 
-            <button
-              onClick={() =>
-                handleNavigate(() => {
-                  setCurrentIssueId(null);
-                  navigate({ app: APPS.PORTAL, tab: TABS.SETTINGS });
-                })
-              }
-              className={`px-3 py-2 md:px-4 rounded-md font-bold text-xs md:text-sm transition-colors ${
-                activeTab === TABS.SETTINGS && currentApp === APPS.PORTAL
-                  ? 'bg-slate-600 text-white'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              Ayarlar
-            </button>
+            {user?.role !== 'misafir' && !user?.isGuest && (
+              <button
+                onClick={() =>
+                  handleNavigate(() => {
+                    setCurrentIssueId(null);
+                    navigate({ app: APPS.PORTAL, tab: TABS.SETTINGS });
+                  })
+                }
+                className={`px-3 py-2 md:px-4 rounded-md font-bold text-xs md:text-sm transition-colors cursor-pointer ${
+                  activeTab === TABS.SETTINGS && currentApp === APPS.PORTAL
+                    ? 'bg-slate-700 text-white'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                Ayarlar
+              </button>
+            )}
           </div>
 
           <div className="flex items-center justify-center gap-3 w-full md:w-auto flex-wrap">
@@ -253,13 +257,13 @@ function MainApp({ user }) {
             <div className="flex items-center gap-2 bg-slate-800/90 border border-slate-700/80 px-3 py-1.5 rounded-xl text-xs md:text-sm shadow-sm">
               <User className="w-4 h-4 text-amber-400" />
               <span className="font-semibold text-white">{user.name}</span>
-              <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold text-[10px] px-2 py-0.5 rounded uppercase">
-                {user.role}
+              <span className="bg-amber-500/15 text-amber-300 border border-amber-500/30 font-bold text-[10px] px-2 py-0.5 rounded uppercase">
+                {user.role === 'misafir' || user.isGuest ? 'Saha Operatörü' : user.role}
               </span>
             </div>
             <button
               onClick={() => handleNavigate(() => logout())}
-              className="flex items-center gap-1 text-red-400 hover:text-red-300 font-semibold text-sm md:text-base transition-colors"
+              className="flex items-center gap-1 text-red-400 hover:text-red-300 font-semibold text-sm md:text-base transition-colors cursor-pointer"
             >
               <LogOut className="w-4 h-4 md:w-5 md:h-5" /> Çıkış
             </button>
@@ -292,82 +296,29 @@ function MainApp({ user }) {
                     }
                   />
                 </div>
-                <div className="flex flex-col md:flex-row justify-between md:items-end px-1 gap-4">
-                  <div>
-                    <h2 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-100">
-                      {activeTab === TABS.OPEN ? 'Açık Problemler' : 'Çözülmüş Problemler'}
-                    </h2>
-                    <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm md:text-base">
-                      {isManager(user)
-                        ? 'Tüm kullanıcıların kayıtları'
-                        : 'Sadece kendi kayıtlarınız'}
-                    </p>
-                  </div>
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
-                    <button
-                      onClick={() => openIssueDetail(null)}
-                      className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md shadow transition-colors flex items-center gap-2 text-sm md:text-base justify-center"
-                    >
-                      + Yeni Kayıt
-                    </button>
-                    <div className="text-sm font-bold text-white bg-blue-600 px-3 py-2 sm:py-1 rounded-md sm:rounded-full shadow text-center">
-                      Toplam: {activeTab === TABS.OPEN ? openIssues.length : resolvedIssues.length}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-slate-700 flex flex-col sm:flex-row gap-4">
-                  <input
-                    type="text"
-                    placeholder="Problem tanımı, bölüm veya ID ara..."
-                    className="flex-1 bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-md px-4 py-2 text-sm text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                  <select
-                    className="bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-md px-4 py-2 text-sm text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
-                    value={searchArea}
-                    onChange={(e) => setSearchArea(e.target.value)}
-                  >
-                    <option value="" className={OPTION_CLASS}>
-                      Tüm Alanlar
-                    </option>
-                    {allAreas.map((area) => (
-                      <option key={area} value={area} className={OPTION_CLASS}>
-                        {area}
-                      </option>
-                    ))}
-                  </select>
-                </div>
 
                 <IssueList
-                  issues={activeTab === TABS.OPEN ? openIssues : resolvedIssues}
+                  issues={issues}
                   onSelectIssue={openIssueDetail}
+                  onOpenNew={() => openIssueDetail(null)}
                 />
               </div>
             )}
 
-            {activeTab === TABS.DETAIL &&
-              (() => {
-                const isResolved = currentIssue?.mevcut_durum === STATUS.GREEN;
-                const list = isResolved ? resolvedIssues : openIssues;
-                const index = currentIssue ? list.findIndex((i) => i.id === currentIssue.id) : -1;
-
-                return (
-                  <div className="animate-fade-in">
-                    <DashboardView
-                      issues={list}
-                      currentIndex={index}
-                      setCurrentIndex={(idx) => setCurrentIssueId(idx === -1 ? null : list[idx].id)}
-                      onBack={() => goToList(isResolved ? TABS.RESOLVED : TABS.OPEN)}
-                      updateIssue={updateIssue}
-                      addIssue={addIssue}
-                      deleteIssue={deleteIssue}
-                      currentUser={user}
-                    />
-                  </div>
-                );
-              })()}
+            {activeTab === TABS.DETAIL && (
+              <div className="animate-fade-in">
+                <DashboardView
+                  issues={issues}
+                  currentIndex={currentIssue ? issues.findIndex((i) => i.id === currentIssue.id) : -1}
+                  setCurrentIndex={(idx) => setCurrentIssueId(idx === -1 ? null : issues[idx]?.id)}
+                  onBack={() => goToList(TABS.OPEN)}
+                  updateIssue={updateIssue}
+                  addIssue={addIssue}
+                  deleteIssue={deleteIssue}
+                  currentUser={user}
+                />
+              </div>
+            )}
 
             {activeTab === TABS.ANALYTICS && (
               <div className="space-y-4 animate-fade-in">
@@ -391,7 +342,13 @@ function MainApp({ user }) {
         )}
         {currentApp === APPS.AUDIT && <AuditModule onBack={() => navigate({ app: APPS.PORTAL })} />}
         {currentApp === APPS.MAINTENANCE && (
-          <MaintenanceModule onBack={() => navigate({ app: APPS.PORTAL })} />
+          <MaintenanceModule
+            onBack={() => navigate({ app: APPS.PORTAL })}
+            onOpenIssue={() => navigate({ app: APPS.ISSUES, tab: TABS.DETAIL })}
+          />
+        )}
+        {currentApp === APPS.SAFETY && (
+          <SafetyModule onBack={() => navigate({ app: APPS.PORTAL })} />
         )}
       </main>
     </div>

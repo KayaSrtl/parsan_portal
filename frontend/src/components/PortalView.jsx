@@ -1,55 +1,94 @@
 import { memo } from 'react';
-import { AlertTriangle, CheckSquare, ClipboardList, Wrench, Activity, ShieldCheck, Factory, Gauge } from 'lucide-react';
+import {
+  AlertTriangle,
+  CheckSquare,
+  ClipboardList,
+  Wrench,
+  ShieldAlert,
+  Activity,
+  ShieldCheck,
+  Factory,
+  Gauge,
+  Lock,
+} from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { isGuest } from '../lib/constants';
 
 const MODULES = [
   {
     id: 'hata_kartlari',
     title: '5S Hata Kartları',
-    subtitle: 'Kırmızı Etiket & Uygunsuzluk',
-    description: 'Sahadaki 5S uygunsuzlukları, kırmızı etiketler ve anlık arıza bildirimlerini takip edin.',
+    subtitle: 'Veri Girişi & Takip Paneli',
+    description: 'Sahadaki kırmızı ve sarı hata kartlarını açın; alan, bölüm, durum ve gecikme bazında filtreleyip takip edin.',
     Icon: AlertTriangle,
-    badge: 'KIRMIZI ETİKET',
-    badgeStyle: 'bg-red-500/10 text-red-400 border-red-500/30',
-    iconBg: 'bg-red-500/20 text-red-400 border border-red-500/30',
-    hoverBorder: 'hover:border-red-500/60',
-  },
-  {
-    id: 'aksiyon_modulu',
-    title: 'Aksiyon Modülü',
-    subtitle: 'Görev & Termin Takibi',
-    description: 'Saha iyileştirme aksiyonlarını, sorumlu atamalarını ve hedef termin tarihlerini yönetin.',
-    Icon: CheckSquare,
-    badge: 'AKTİF TAKİP',
-    badgeStyle: 'bg-amber-500/10 text-amber-300 border-amber-500/30',
-    iconBg: 'bg-amber-500/20 text-amber-300 border border-amber-500/30',
-    hoverBorder: 'hover:border-amber-500/60',
-  },
-  {
-    id: 'bes_s_denetim',
-    title: '5S Denetim Modülü',
-    subtitle: 'Radar Grafik & Skorlama',
-    description: 'Bölüm bazlı 5S denetim soru listeleri, anlık puanlama ve kurumsal radar grafikleri.',
-    Icon: ClipboardList,
-    badge: 'RADAR RAPOR',
-    badgeStyle: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30',
-    iconBg: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30',
-    hoverBorder: 'hover:border-emerald-500/60',
+    badge: 'KIRMIZI / SARI',
+    badgeStyle: 'bg-rose-500/15 text-rose-300 border-rose-500/30',
+    iconBg: 'bg-rose-500/15 text-rose-300 border border-rose-500/30',
+    hoverBorder: 'hover:border-rose-500/60',
+    guestAllowed: true,
   },
   {
     id: 'otonom_bakim',
     title: 'Otonom Bakım (TPM)',
     subtitle: 'Operatör Kontrolleri',
-    description: 'Tezgah operatör kontrol checklistleri, yağlama standartları ve periyodik temizlik adımları.',
+    description: 'Hava basınç barası (3-5 bar), hava valfi kaçak testi ve atık yağ tankı periyodik operatör kontrol adımları.',
     Icon: Wrench,
     badge: 'TPM SİSTEMİ',
-    badgeStyle: 'bg-blue-500/10 text-blue-300 border-blue-500/30',
-    iconBg: 'bg-blue-500/20 text-blue-300 border border-blue-500/30',
-    hoverBorder: 'hover:border-blue-500/60',
+    badgeStyle: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
+    iconBg: 'bg-sky-500/15 text-sky-300 border border-sky-500/30',
+    hoverBorder: 'hover:border-sky-500/60',
+    guestAllowed: true,
+  },
+  {
+    id: 'isg_risk_bildirimi',
+    title: 'İSG Risk Bildirimi',
+    subtitle: 'Risk & Ramak Kala Takibi',
+    description: 'Saha tehlike ve ramak kala bildirimleri, önleyici aksiyonlar, risk derecelendirmesi ve görsel kayıtlar.',
+    Icon: ShieldAlert,
+    badge: 'İSG GÜVENLİK',
+    badgeStyle: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+    iconBg: 'bg-amber-500/15 text-amber-300 border border-amber-500/30',
+    hoverBorder: 'hover:border-amber-500/60',
+    guestAllowed: true,
+  },
+  {
+    id: 'aksiyon_modulu',
+    title: 'Aksiyon Modülü',
+    subtitle: 'Görev & Termin Takibi',
+    description: 'Açılan hata kartlarından otomatik düşen aksiyonlar, termin hedefleri ve sorumlu yönetici takibi.',
+    Icon: CheckSquare,
+    badge: 'AKTİF TAKİP',
+    badgeStyle: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30',
+    iconBg: 'bg-indigo-500/15 text-indigo-300 border border-indigo-500/30',
+    hoverBorder: 'hover:border-indigo-500/60',
+    guestAllowed: false,
+  },
+  {
+    id: 'bes_s_denetim',
+    title: '5S Denetim Modülü',
+    subtitle: 'Dashboard & Radar Rapor',
+    description: 'Dönem bazlı denetim puanları dashboardu, 1 yıllık alan trend analizleri ve PDF rapor dışa aktarma.',
+    Icon: ClipboardList,
+    badge: 'RADAR & DASHBOARD',
+    badgeStyle: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+    iconBg: 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30',
+    hoverBorder: 'hover:border-emerald-500/60',
+    guestAllowed: false,
   },
 ];
 
 function PortalView({ onSelectApp }) {
+  const { user } = useAuth();
+  const guestUser = isGuest(user);
   const baseUrl = import.meta.env.BASE_URL;
+
+  const handleCardClick = (module) => {
+    if (guestUser && !module.guestAllowed) {
+      alert(`"${module.title}" modülüne erişim yetkiniz bulunmamaktadır. Misafir operatör girişi ile Hata Kartı, Otonom Bakım ve İSG modüllerini kullanabilirsiniz.`);
+      return;
+    }
+    onSelectApp(module.id);
+  };
 
   return (
     <div className="relative min-h-[calc(100vh-140px)] max-w-7xl mx-auto px-3 sm:px-4 py-4 md:py-6 animate-fade-in">
@@ -100,7 +139,7 @@ function PortalView({ onSelectApp }) {
 
               <div className="px-3 py-2 text-center flex-1 sm:flex-initial">
                 <div className="flex items-center justify-center gap-1.5 text-xs text-gray-400 font-bold uppercase tracking-wider mb-0.5">
-                  <Activity className="w-3.5 h-3.5 text-blue-400" /> Vardiya
+                  <Activity className="w-3.5 h-3.5 text-sky-400" /> Vardiya
                 </div>
                 <div className="text-sm font-black text-white">Kesintisiz</div>
               </div>
@@ -109,7 +148,7 @@ function PortalView({ onSelectApp }) {
         </div>
 
         {/* =========================================================================
-            2. MODÜL SEÇİM KARTLARI (KURUMSAL ENDÜSTRİYEL PANEL)
+            2. MODÜL SEÇİM KARTLARI (PASTEL INDUSTRIAL GRID)
             ========================================================================= */}
         <div>
           <div className="flex items-center justify-between mb-4 px-1">
@@ -117,46 +156,63 @@ function PortalView({ onSelectApp }) {
               <span className="w-2 h-2 rounded-full bg-amber-500" />
               Saha ve Yönetim Modülleri
             </h2>
-            <span className="text-xs text-gray-500 font-medium">Lütfen çalışmak istediğiniz modülü seçin</span>
+            <span className="text-xs text-gray-500 font-medium">
+              {guestUser ? 'Saha Operatör Yetkisi: Hata Kartı & Otonom Bakım' : 'Tüm Modüller Erişilebilir'}
+            </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-            {MODULES.map(({ id, title, subtitle, description, Icon, badge, badgeStyle, iconBg, hoverBorder }) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => onSelectApp(id)}
-                className={`group relative cursor-pointer flex flex-col justify-between text-left p-6 rounded-2xl border border-slate-800 bg-slate-900/95 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl ${hoverBorder} overflow-hidden`}
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <div className={`p-3 rounded-xl ${iconBg} shadow-sm transition-transform duration-200 group-hover:scale-105`}>
-                      <Icon className="w-6 h-6" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {MODULES.map((module) => {
+              const { id, title, subtitle, description, Icon, badge, badgeStyle, iconBg, hoverBorder, guestAllowed } = module;
+              const isLocked = guestUser && !guestAllowed;
+
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => handleCardClick(module)}
+                  className={`group relative cursor-pointer flex flex-col justify-between text-left p-6 rounded-2xl border bg-slate-900/95 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl overflow-hidden ${
+                    isLocked
+                      ? 'border-slate-800/60 opacity-60 hover:opacity-75'
+                      : `border-slate-800 ${hoverBorder}`
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className={`p-3 rounded-xl ${iconBg} shadow-sm transition-transform duration-200 group-hover:scale-105`}>
+                        <Icon className="w-6 h-6" />
+                      </div>
+                      {isLocked ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border border-slate-700 bg-slate-800 text-gray-400">
+                          <Lock className="w-2.5 h-2.5" /> Yetkili Girişi
+                        </span>
+                      ) : (
+                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${badgeStyle}`}>
+                          {badge}
+                        </span>
+                      )}
                     </div>
-                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${badgeStyle}`}>
-                      {badge}
+
+                    <h3 className="text-lg font-black text-white group-hover:text-amber-400 transition-colors mb-1">
+                      {title}
+                    </h3>
+                    <div className="text-xs font-semibold text-slate-400 mb-2.5">
+                      {subtitle}
+                    </div>
+                    <p className="text-gray-400 text-xs leading-relaxed">
+                      {description}
+                    </p>
+                  </div>
+
+                  <div className="mt-6 pt-3.5 border-t border-slate-800 flex items-center justify-between text-xs font-bold text-gray-400 group-hover:text-amber-400 transition-colors">
+                    <span>{isLocked ? 'Erişim Kısıtlı' : 'Modüle Git'}</span>
+                    <span className="transform transition-transform duration-200 group-hover:translate-x-1 font-black text-sm">
+                      {isLocked ? '🔒' : '→'}
                     </span>
                   </div>
-
-                  <h3 className="text-lg font-black text-white group-hover:text-amber-400 transition-colors mb-1">
-                    {title}
-                  </h3>
-                  <div className="text-xs font-semibold text-slate-400 mb-2.5">
-                    {subtitle}
-                  </div>
-                  <p className="text-gray-400 text-xs leading-relaxed">
-                    {description}
-                  </p>
-                </div>
-
-                <div className="mt-6 pt-3.5 border-t border-slate-800 flex items-center justify-between text-xs font-bold text-gray-400 group-hover:text-amber-400 transition-colors">
-                  <span>Modüle Git</span>
-                  <span className="transform transition-transform duration-200 group-hover:translate-x-1 font-black text-sm">
-                    →
-                  </span>
-                </div>
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </div>
         </div>
 
