@@ -1,13 +1,35 @@
 import { useCallback, useRef, useState } from 'react';
-import { Plus, Save, Trash2, UserCheck, Users, Filter } from 'lucide-react';
+import {
+  Plus,
+  Save,
+  Trash2,
+  UserCheck,
+  Users,
+  Filter,
+  Calendar,
+  Lock,
+  MessageSquare,
+  CheckCircle2,
+  Tag,
+} from 'lucide-react';
 
 import { useActions } from '../hooks/useActions';
 import { useUsers } from '../hooks/useUsers';
 import { useToast } from '../hooks/useToast';
-import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
-import { openDatePicker } from '../lib/datePicker';
-import { ACTION_STATUS, OPTION_CLASS, isManager, isSuperAdmin } from '../lib/constants';
-import { formatDate, formatDateTime, parseNotes, toDisplayDate, toInputDate } from '../utils/helpers';
+import {
+  ACTION_STATUS,
+  DEPARTMENTS,
+  OPTION_CLASS,
+  isManager,
+  isSuperAdmin,
+} from '../lib/constants';
+import {
+  formatDate,
+  formatDateTime,
+  parseNotes,
+  toDisplayDate,
+  toInputDate,
+} from '../utils/helpers';
 import ConfirmDialog from './ui/ConfirmDialog';
 import Toast from './ui/Toast';
 import PortalBackButton from './ui/PortalBackButton';
@@ -28,11 +50,6 @@ const toInt = (value) => {
   return Number.isNaN(parsed) ? 0 : parsed;
 };
 
-/**
- * Alt başlık ağırlıklarını toplamı 100 olacak şekilde dengeler.
- * Son satır artık payı alır. Girdiyi değiştirmeden YENİ nesneler döner —
- * doğrudan state içindeki nesneleri değiştirmek React'te bayat render'a yol açar.
- */
 const balanceWeights = (subs) => {
   if (subs.length === 0) return [];
   if (subs.length === 1) return [{ ...subs[0], weight: 100 }];
@@ -56,14 +73,14 @@ const calcProgress = (subs) =>
   );
 
 const getProgressColor = (progress) => {
-  if (progress >= 100) return 'bg-green-500';
-  if (progress > 50) return 'bg-blue-500';
-  if (progress > 0) return 'bg-yellow-500';
-  return 'bg-gray-300 dark:bg-gray-600';
+  if (progress >= 100) return 'bg-emerald-500';
+  if (progress > 50) return 'bg-sky-500';
+  if (progress > 0) return 'bg-amber-500';
+  return 'bg-slate-300 dark:bg-slate-600';
 };
 
 export default function ActionModule({ onBack, currentUser }) {
-  const { actions, loading, error, addAction, updateAction, deleteAction } = useActions();
+  const { actions, loading, error, addAction, updateAction, deleteAction, refresh } = useActions();
   const { users } = useUsers();
   const { toast, showToast, hideToast } = useToast();
 
@@ -75,51 +92,134 @@ export default function ActionModule({ onBack, currentUser }) {
   const [isDirty, setIsDirty] = useState(false);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [actionScope, setActionScope] = useState('my'); // 'my' | 'all'
+  const [actionScope, setActionScope] = useState('all'); // 'all' | 'my'
   const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'Açık' | 'Tamamlandı'
 
-  const datePickerRef = useRef(null);
-  // Aynı anda iki kaydetme isteği gitmesin: blur + tıklama üst üste gelirse
-  // eskiden aynı aksiyon iki kez oluşturuluyordu.
   const savingRef = useRef(false);
 
   const canManage = isManager(currentUser);
+  const superAdmin = isSuperAdmin(currentUser);
   const isEditing = Boolean(currentAction);
 
-  // Hedef tarih düzenleme yetkisi: Yönetici her zaman, atanan kişi ise hedef tarih boşsa (1 kereliğine)
-  const canEditTargetDate =
-    canManage ||
-    !currentAction?.target_date ||
-    currentAction?.target_date.trim() === '';
+  // 1 Kereliğine Hedef Tarih Kuralı:
+  // Aksiyon yeni açılıyorsa veya mevcut aksiyonda hedef tarih henüz tanımlanmamışsa / kilitlenmemişse
+  // kullanıcı 1 kereliğine hedef tarih girebilir. Girip kaydettiğinde kilitlenir.
+  const isTargetDateLocked =
+    isEditing &&
+    Boolean(currentAction?.target_date && String(currentAction.target_date).trim()) &&
+    (Boolean(currentAction?.target_date_locked) || !superAdmin);
+
+  const canEditTargetDate = !isEditing || !isTargetDateLocked || superAdmin;
+
+  const getCombinedNotes = (action) => {
+    if (!action) return [];
+    const issueNotes = parseNotes(
+      action.issue_notes,
+      action.issue_reporter || 'Saha Operatörü',
+      action.created_at
+    );
+    const actNotes = Array.isArray(action.notes)
+      ? action.notes
+      : parseNotes(action.notes, currentUser?.name, action.created_at);
+
+    // Aynı metin ve zamanlı notları tekilleştir
+    const seen = new Set();
+    const allNotes = [];
+    [...issueNotes, ...actNotes].forEach((n) => {
+      if (!n?.text) return;
+      const cleanKey = `${n.sender || ''}:${n.text.replace(/^\[Aksiyon(?: Notu)?\]\s*/, '')}`;
+      if (!seen.has(cleanKey)) {
+        seen.add(cleanKey);
+        allNotes.push(n);
+      }
+    });
+    return allNotes;
+  };
 
   const handleSave = useCallback(
     async ({ silent = false, extraPayload = {} } = {}) => {
       if (savingRef.current) return false;
 
-      if (!formData.action_content?.trim()) {
-        if (!silent) showToast('Aksiyon içeriği boş bırakılamaz.', true);
+      const merged = { ...formData, ...extraPayload };
+
+      if (!merged.action_content?.trim()) {
+        if (!silent) showToast('Aksiyon konusu / içeriği boş bırakılamaz.', true);
         return false;
       }
-      if (canManage && (!formData.assignee_name || !formData.target_date)) {
-        if (!silent) showToast('Sorumlu kişi ve hedef tarih zorunludur.', true);
+      if (!merged.assignee_name?.trim()) {
+        if (!silent) showToast('Lütfen sorumlu kişi veya bölüm seçiniz.', true);
         return false;
       }
 
       savingRef.current = true;
       setIsSaving(true);
       try {
-        const payload = { ...formData, ...extraPayload };
+        // Eğer hedef tarih ilk kez girildiyse 'Hedef Tanımlamak' alt aksiyonunu otomatik tamamla
+        let updatedSubs = Array.isArray(merged.sub_actions) && merged.sub_actions.length > 0
+          ? [...merged.sub_actions]
+          : INITIAL_SUB_ACTIONS;
+
+        if (merged.target_date && String(merged.target_date).trim()) {
+          updatedSubs = updatedSubs.map((s) =>
+            s.title.toLowerCase().includes('hedef tanımlamak') ? { ...s, completed: true } : s
+          );
+        }
+
+        const balancedSubs = balanceWeights(updatedSubs);
+        const progress = calcProgress(balancedSubs);
+        const payload = {
+          ...merged,
+          sub_actions: balancedSubs,
+          progress,
+          status: progress >= 100 ? ACTION_STATUS.DONE : ACTION_STATUS.OPEN,
+        };
+
+        if (newIssueNote.trim() && !payload.new_note) {
+          payload.new_note = newIssueNote.trim();
+          setNewIssueNote('');
+        }
+
         if (currentAction) {
           const res = await updateAction(currentAction.id, payload);
-          if (res?.action) {
-            setCurrentAction(res.action);
-          }
+          const updatedAct = res?.action || { ...currentAction, ...payload, target_date_locked: Boolean(payload.target_date) };
+          setCurrentAction(updatedAct);
+          setFormData({
+            assignee_name: updatedAct.assignee_name || '',
+            action_content: updatedAct.action_content || '',
+            target_date:
+              toInputDate(updatedAct.target_date) ||
+              (updatedAct.target_date ? String(updatedAct.target_date).split('T')[0] : ''),
+            progress: updatedAct.progress ?? progress,
+            status: updatedAct.status || payload.status,
+            sub_actions:
+              Array.isArray(updatedAct.sub_actions) && updatedAct.sub_actions.length > 0
+                ? updatedAct.sub_actions
+                : balancedSubs,
+          });
         } else {
           const created = await addAction(payload);
-          setCurrentAction({ id: created.id, ...payload });
+          const createdAct = created?.action || {
+            id: created.id,
+            ...payload,
+            target_date_locked: Boolean(payload.target_date),
+          };
+          setCurrentAction(createdAct);
+          setFormData((prev) => ({
+            ...prev,
+            sub_actions: balancedSubs,
+            progress,
+            status: payload.status,
+          }));
         }
         setIsDirty(false);
-        if (!silent) showToast('Aksiyon kaydedildi.');
+        await refresh();
+        if (!silent) {
+          showToast(
+            merged.target_date && !currentAction?.target_date
+              ? 'Hedef tarih 1 kereliğine tanımlandı ve "Hedef Tanımlamak" tamamlandı!'
+              : 'Aksiyon başarıyla kaydedildi.'
+          );
+        }
         return true;
       } catch (err) {
         showToast('Kayıt başarısız: ' + err.message, true);
@@ -129,29 +229,19 @@ export default function ActionModule({ onBack, currentUser }) {
         setIsSaving(false);
       }
     },
-    [formData, currentAction, canManage, addAction, updateAction, showToast]
+    [formData, newIssueNote, currentAction, addAction, updateAction, refresh, showToast]
   );
 
   const handleAddIssueNote = async () => {
-    if (!newIssueNote.trim() || !currentAction?.id) return;
-    try {
-      const res = await updateAction(currentAction.id, {
-        ...formData,
-        new_note: newIssueNote.trim(),
-      });
-      if (res?.action) {
-        setCurrentAction(res.action);
-      }
-      setNewIssueNote('');
-      showToast('Gelişme notu hata kartına başarıyla eklendi.');
-    } catch (err) {
-      showToast('Not eklenemedi: ' + err.message, true);
+    if (!newIssueNote.trim()) return;
+    if (!currentAction?.id) {
+      showToast('Not eklemek için önce aksiyonu kaydedin.', true);
+      return;
     }
+    const noteText = newIssueNote.trim();
+    setNewIssueNote('');
+    await handleSave({ silent: false, extraPayload: { new_note: noteText } });
   };
-
-  // Sadece MEVCUT bir aksiyon düzenlenirken otomatik kayıt yap. Yeni aksiyon
-  // için açıkça "Kaydet" gerekir; aksi halde yarım kalmış taslaklar oluşuyordu.
-  useUnsavedChanges(isDirty && isEditing, () => handleSave({ silent: true }));
 
   const openForm = (action = null) => {
     setCurrentAction(action);
@@ -170,7 +260,11 @@ export default function ActionModule({ onBack, currentUser }) {
                 ? action.sub_actions
                 : INITIAL_SUB_ACTIONS,
           }
-        : EMPTY_FORM
+        : {
+            ...EMPTY_FORM,
+            assignee_name: `${DEPARTMENTS[0]} Yöneticisi`,
+            sub_actions: [{ title: 'Hedef Tanımlamak', weight: 100, completed: false }],
+          }
     );
     setNewIssueNote('');
     setIsDirty(false);
@@ -185,11 +279,25 @@ export default function ActionModule({ onBack, currentUser }) {
   };
 
   const handleFormChange = (field, value) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    setFormData((prev) => {
+      const next = { ...prev, [field]: value };
+      // Hedef tarih seçildiğinde ilk aksiyon olan 'Hedef Tanımlamak' otomatik işaretlensin
+      if (field === 'target_date' && value) {
+        const subs = balanceWeights(
+          (prev.sub_actions || INITIAL_SUB_ACTIONS).map((s) =>
+            s.title.toLowerCase().includes('hedef tanımlamak') ? { ...s, completed: true } : s
+          )
+        );
+        const progress = calcProgress(subs);
+        next.sub_actions = subs;
+        next.progress = progress;
+        next.status = progress >= 100 ? ACTION_STATUS.DONE : ACTION_STATUS.OPEN;
+      }
+      return next;
+    });
     setIsDirty(true);
   };
 
-  /** Alt başlıkları güncelledikten sonra ilerleme ve durumu yeniden hesaplar. */
   const applySubActions = (updater) => {
     setFormData((prev) => {
       const subs = balanceWeights(updater(prev.sub_actions || []));
@@ -213,10 +321,6 @@ export default function ActionModule({ onBack, currentUser }) {
   const removeSubAction = (index) =>
     applySubActions((subs) => subs.filter((_, i) => i !== index));
 
-  const handleBlur = () => {
-    if (isDirty && isEditing) handleSave({ silent: true });
-  };
-
   const handleDelete = async () => {
     setShowDeleteConfirm(false);
     try {
@@ -233,28 +337,29 @@ export default function ActionModule({ onBack, currentUser }) {
       onBack();
       return;
     }
-    // Yeni ve dolu bir form kapatılıyorsa kullanıcıya sor; kaydedilmemiş veri kaybolur.
     if (!isEditing && isDirty && formData.action_content?.trim()) {
       setShowExitConfirm(true);
       return;
     }
-    if (isEditing && isDirty) await handleSave({ silent: true });
     closeForm();
   };
 
   if (loading && actions.length === 0) {
-    return <div className="p-8 text-center text-gray-500">Yükleniyor...</div>;
+    return <div className="p-8 text-center text-slate-500">Yükleniyor...</div>;
   }
 
   if (error) {
-    return <div className="p-8 text-center text-red-500">Hata: {error}</div>;
+    return <div className="p-8 text-center text-rose-500">Hata: {error}</div>;
   }
 
   const isMine = (act) => {
     if (!act.assignee_name || !currentUser?.name) return false;
     const a = act.assignee_name.trim().toLowerCase();
     const u = currentUser.name.trim().toLowerCase();
-    return a === u || a.includes(u) || u.includes(a);
+    if (a === u || a.includes(u) || u.includes(a)) return true;
+    // Yöneticiler için bölüm yöneticisi aksiyonları da kendi görevlerinde görünsün
+    if (canManage && a.includes('yöneticisi')) return true;
+    return false;
   };
 
   const myActions = actions.filter(isMine);
@@ -264,36 +369,51 @@ export default function ActionModule({ onBack, currentUser }) {
       ? scopeActions
       : scopeActions.filter((a) => a.status === statusFilter);
 
+  const departmentAssignees = [
+    ...DEPARTMENTS.map((d) => `${d} Yöneticisi`),
+    'Bakım Onarım Yöneticisi',
+    'İlgili Bölüm Sorumlusu',
+  ];
+
+  const allKnownAssignees = new Set([
+    ...departmentAssignees,
+    ...users.map((u) => u.name),
+  ]);
+
   const inputClass =
-    'w-full bg-transparent border border-gray-300 dark:border-slate-600 rounded-md p-3 focus:ring-2 focus:ring-blue-500 text-gray-800 dark:text-gray-100 outline-none';
-  const readOnlyClass = canManage ? '' : 'opacity-70 cursor-not-allowed';
+    'w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl p-3 focus:ring-2 focus:ring-indigo-400 text-slate-800 dark:text-slate-100 outline-none text-sm font-medium';
+
+  const combinedNotes = getCombinedNotes(currentAction);
 
   return (
-    <div className="max-w-6xl mx-auto animate-fade-in p-2 md:p-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
-        <div className="flex items-center gap-2 md:gap-4 self-start md:self-auto">
+    <div className="max-w-6xl mx-auto animate-fade-in p-2 md:p-4">
+      <div className="bg-white/95 dark:bg-slate-900/90 border border-slate-200/90 dark:border-slate-800 rounded-3xl p-4 sm:p-6 mb-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3 self-start md:self-auto">
           <PortalBackButton
             onBack={handleGoBack}
-            label={view === 'form' ? 'Aksiyonlara Dön' : 'Portala Dön'}
+            label={view === 'form' ? 'Aksiyon Listesine Dön' : 'Portala Dön'}
           />
-          <h2 className="text-xl md:text-3xl font-black text-gray-800 dark:text-gray-100">
-            {view === 'form'
-              ? canManage
+          <div>
+            <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white">
+              {view === 'form'
                 ? isEditing
-                  ? 'Aksiyon Düzenle'
-                  : 'Aksiyon Tanımla'
-                : 'Aksiyon Detayı / İşlem'
-              : 'Aksiyon Modülü & Görev Takibi'}
-          </h2>
+                  ? `Aksiyon Detayı & Hedef Tanımlama (#${currentAction.id})`
+                  : 'Yeni Aksiyon Tanımla'
+                : 'Aksiyon Modülü & Görev Takibi'}
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Açılan hata kartları ilgili bölüm yöneticisine otomatik düşer; ilk aksiyon olarak &quot;Hedef Tanımlamak&quot; gelir ve 1 kereliğine hedef tarih girilir.
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 self-end md:self-auto">
           {view === 'list' && canManage && (
             <button
               onClick={() => openForm()}
-              className="w-full md:w-auto justify-center bg-gradient-to-r from-red-600 via-orange-600 to-amber-500 hover:from-red-500 hover:to-amber-400 text-white font-black py-2.5 md:py-3 px-5 rounded-xl shadow-lg transition-all flex items-center gap-2 cursor-pointer"
+              className="w-full md:w-auto justify-center bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 text-white font-bold py-2.5 px-5 rounded-xl shadow-xs transition-all flex items-center gap-2 text-xs sm:text-sm cursor-pointer"
             >
-              <Plus className="w-5 h-5" /> Yeni Aksiyon Tanımla
+              <Plus className="w-4 h-4" /> Yeni Aksiyon Aç
             </button>
           )}
 
@@ -302,17 +422,17 @@ export default function ActionModule({ onBack, currentUser }) {
               <button
                 onClick={() => handleSave()}
                 disabled={isSaving}
-                className="bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 md:py-3 px-4 rounded-xl shadow transition-colors flex items-center gap-2 disabled:opacity-60 cursor-pointer"
+                className="bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 text-white font-bold py-2.5 px-5 rounded-xl shadow-xs transition-colors flex items-center gap-2 text-xs sm:text-sm disabled:opacity-60 cursor-pointer"
               >
-                <Save className="w-5 h-5" /> {isSaving ? 'Kaydediliyor...' : 'Kaydet'}
+                <Save className="w-4 h-4" /> {isSaving ? 'Kaydediliyor...' : 'Kaydet'}
               </button>
 
-              {isEditing && isSuperAdmin(currentUser) && (
+              {isEditing && superAdmin && (
                 <button
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 md:py-3 px-4 rounded-xl text-sm transition shadow-sm flex items-center gap-2 cursor-pointer"
+                  className="bg-rose-100 hover:bg-rose-200 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300 font-bold py-2.5 px-4 rounded-xl text-xs sm:text-sm transition flex items-center gap-1.5 cursor-pointer"
                 >
-                  <Trash2 className="w-5 h-5" /> <span className="hidden sm:inline">Sil</span>
+                  <Trash2 className="w-4 h-4" /> Sil
                 </button>
               )}
             </>
@@ -321,74 +441,59 @@ export default function ActionModule({ onBack, currentUser }) {
       </div>
 
       {/* =========================================================================
-          GÖREV KAPSAMI SEKMELERİ (Bana Ait Görevler vs. Genel Görevler)
+          GÖREV KAPSAMI SEKMELERİ
           ========================================================================= */}
       {view === 'list' && (
-        <div className="mb-6 space-y-3">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-900/90 border border-slate-700/80 p-2 rounded-2xl shadow-lg">
+        <div className="mb-6">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white/95 dark:bg-slate-900/90 border border-slate-200/90 dark:border-slate-800 p-2.5 rounded-2xl shadow-xs">
             <div className="flex flex-wrap items-center gap-2">
-              {/* Bana Ait Görevler */}
               <button
                 type="button"
-                onClick={() => setActionScope('my')}
-                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs sm:text-sm tracking-wider uppercase transition-all duration-200 cursor-pointer ${
-                  actionScope === 'my'
-                    ? 'bg-gradient-to-r from-red-600 via-orange-600 to-amber-500 text-white shadow-[0_0_15px_rgba(245,158,11,0.5)]'
-                    : 'text-gray-400 hover:text-white hover:bg-slate-800'
+                onClick={() => setActionScope('all')}
+                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${
+                  actionScope === 'all'
+                    ? 'bg-indigo-100 text-indigo-900 border border-indigo-300 dark:bg-indigo-500/20 dark:text-indigo-200 dark:border-indigo-500/40 shadow-2xs'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
                 }`}
               >
-                <UserCheck className="w-4 h-4" />
-                <span>Bana Ait Görevler</span>
-                <span
-                  className={`px-2 py-0.5 rounded-full text-xs font-black ${
-                    actionScope === 'my'
-                      ? 'bg-black/30 text-white'
-                      : 'bg-slate-800 text-amber-400'
-                  }`}
-                >
-                  {myActions.length}
+                <Users className="w-4 h-4" />
+                <span>Tüm Bölüm Aksiyonları</span>
+                <span className="px-2 py-0.5 rounded-full text-xs font-black bg-white/80 dark:bg-slate-800 text-indigo-700 dark:text-indigo-300">
+                  {actions.length}
                 </span>
               </button>
 
-              {/* Genel Görevler (Tüm Şirket) - Admin ve Yöneticiler için */}
-              {canManage && (
-                <button
-                  type="button"
-                  onClick={() => setActionScope('all')}
-                  className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs sm:text-sm tracking-wider uppercase transition-all duration-200 cursor-pointer ${
-                    actionScope === 'all'
-                      ? 'bg-gradient-to-r from-red-600 via-orange-600 to-amber-500 text-white shadow-[0_0_15px_rgba(245,158,11,0.5)]'
-                      : 'text-gray-400 hover:text-white hover:bg-slate-800'
-                  }`}
-                >
-                  <Users className="w-4 h-4" />
-                  <span>Genel Görevler (Tüm Şirket)</span>
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-xs font-black ${
-                      actionScope === 'all'
-                        ? 'bg-black/30 text-white'
-                        : 'bg-slate-800 text-amber-400'
-                    }`}
-                  >
-                    {actions.length}
-                  </span>
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => setActionScope('my')}
+                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${
+                  actionScope === 'my'
+                    ? 'bg-indigo-100 text-indigo-900 border border-indigo-300 dark:bg-indigo-500/20 dark:text-indigo-200 dark:border-indigo-500/40 shadow-2xs'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
+                }`}
+              >
+                <UserCheck className="w-4 h-4" />
+                <span>Bana / Bölümümüze Ait</span>
+                <span className="px-2 py-0.5 rounded-full text-xs font-black bg-white/80 dark:bg-slate-800 text-indigo-700 dark:text-indigo-300">
+                  {myActions.length}
+                </span>
+              </button>
             </div>
 
-            {/* Durum Filtresi (Tümü, Açık, Tamamlandı) */}
             <div className="flex items-center justify-end gap-2 px-2">
-              <Filter className="w-3.5 h-3.5 text-gray-400" />
+              <Filter className="w-3.5 h-3.5 text-slate-400" />
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-slate-800 border border-slate-700 text-xs text-white rounded-xl px-3 py-2 outline-none focus:border-amber-500 cursor-pointer"
+                className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-white rounded-xl px-3 py-2 outline-none focus:border-indigo-400 cursor-pointer"
               >
-                <option value="all">Tüm Durumlar ({scopeActions.length})</option>
-                <option value="Açık">
-                  Sadece Açık ({scopeActions.filter((a) => a.status === 'Açık').length})
+                <option value="all" className={OPTION_CLASS}>
+                  Tüm Durumlar ({scopeActions.length})
                 </option>
-                <option value="Tamamlandı">
+                <option value="Açık" className={OPTION_CLASS}>
+                  Açık Aksiyonlar ({scopeActions.filter((a) => a.status === 'Açık').length})
+                </option>
+                <option value="Tamamlandı" className={OPTION_CLASS}>
                   Tamamlananlar ({scopeActions.filter((a) => a.status === 'Tamamlandı').length})
                 </option>
               </select>
@@ -398,9 +503,13 @@ export default function ActionModule({ onBack, currentUser }) {
       )}
 
       {view === 'list' ? (
-        <ActionList actions={displayedActions} onSelect={openForm} scope={actionScope} />
+        <ActionList
+          actions={displayedActions}
+          onSelect={openForm}
+          getCombinedNotes={getCombinedNotes}
+        />
       ) : (
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg border border-gray-200 dark:border-slate-700 max-w-3xl mx-auto">
+        <div className="bg-white/95 dark:bg-slate-900/95 p-6 sm:p-8 rounded-3xl shadow-sm border border-slate-200/90 dark:border-slate-800 max-w-4xl mx-auto">
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -408,133 +517,200 @@ export default function ActionModule({ onBack, currentUser }) {
             }}
             className="space-y-6"
           >
+            {/* Bağlı Hata Kartı Bilgi Şeridi */}
+            {currentAction?.issue_id && (
+              <div className="bg-rose-50/80 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-500/30 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <Tag className="w-5 h-5 text-rose-500" />
+                  <div>
+                    <div className="text-xs font-black text-rose-900 dark:text-rose-200">
+                      Hata Kartı #{currentAction.issue_id} Kaynaklı Otomatik Aksiyon
+                    </div>
+                    <div className="text-[11px] text-rose-700 dark:text-rose-300">
+                      {currentAction.issue_area && `Alan: ${currentAction.issue_area.toUpperCase()} • `}
+                      {currentAction.issue_department && `İlgili Bölüm: ${currentAction.issue_department} • `}
+                      Hata Kartı Termini: {formatDate(currentAction.issue_target_date)}
+                    </div>
+                  </div>
+                </div>
+                {currentAction.hata_karti_turu && (
+                  <span className="text-xs font-bold px-3 py-1 rounded-full bg-rose-100 text-rose-800 border border-rose-300 dark:bg-rose-500/20 dark:text-rose-300">
+                    {currentAction.hata_karti_turu}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* İşlem Yapılacak Konu */}
             <div>
-              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">
-                İşlem Yapılacak Konu (Aksiyon)
+              <label className="block text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                İşlem Yapılacak Konu (Aksiyon Tanımı)
               </label>
               <textarea
-                disabled={!canManage}
-                className={`${inputClass} ${readOnlyClass}`}
+                disabled={!canManage && isEditing}
+                className={`${inputClass} ${!canManage && isEditing ? 'opacity-75 cursor-not-allowed' : ''}`}
                 rows="3"
+                placeholder="Aksiyon konusunu yazınız..."
                 value={formData.action_content}
                 onChange={(e) => handleFormChange('action_content', e.target.value)}
-                onBlur={handleBlur}
               />
             </div>
 
+            {/* Sorumlu Bölüm/Kişi & 1 Kerelik Hedef Tarih Girişi */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">
-                  Sorumlu Kişi
+                <label className="block text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                  Sorumlu Bölüm Yöneticisi / Kişi
                 </label>
                 {canManage ? (
                   <select
-                    className={inputClass}
+                    className={`${inputClass} cursor-pointer`}
                     value={formData.assignee_name}
                     onChange={(e) => handleFormChange('assignee_name', e.target.value)}
-                    onBlur={handleBlur}
                   >
                     <option value="" disabled className={OPTION_CLASS}>
-                      Kişi Seçiniz...
+                      Sorumlu Seçiniz...
                     </option>
-                    {users.map((user) => (
-                      <option key={user.id} value={user.name} className={OPTION_CLASS}>
-                        {user.name}
+                    {formData.assignee_name && !allKnownAssignees.has(formData.assignee_name) && (
+                      <option value={formData.assignee_name} className={OPTION_CLASS}>
+                        {formData.assignee_name}
                       </option>
-                    ))}
+                    )}
+                    <optgroup label="Bölüm Yöneticileri" className={OPTION_CLASS}>
+                      {departmentAssignees.map((deptMgr) => (
+                        <option key={deptMgr} value={deptMgr} className={OPTION_CLASS}>
+                          {deptMgr}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Sistem Kullanıcıları" className={OPTION_CLASS}>
+                      {users.map((u) => (
+                        <option key={u.id} value={u.name} className={OPTION_CLASS}>
+                          {u.name}
+                        </option>
+                      ))}
+                    </optgroup>
                   </select>
                 ) : (
                   <input
                     disabled
                     type="text"
-                    className={`${inputClass} opacity-70 cursor-not-allowed`}
+                    className={`${inputClass} opacity-75 cursor-not-allowed`}
                     value={formData.assignee_name}
                   />
                 )}
               </div>
 
+              {/* HEDEF TARİH OLUŞTURMA (1 KERELİK TANIMLAMA) */}
               <div>
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1 flex items-center justify-between">
-                  <span>Hedef Tarih</span>
-                  {!canManage && canEditTargetDate && (
-                    <span className="text-[11px] text-amber-400 font-semibold normal-case">1 Kerelik Tanımlama</span>
+                <label className="block text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Calendar className="w-4 h-4 text-indigo-500" />
+                    <span>Hedef Tarih (Termin)</span>
+                  </span>
+                  {isTargetDateLocked && !superAdmin ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300 normal-case">
+                      <Lock className="w-3 h-3" /> 1 Kerelik Hedef Girildi
+                    </span>
+                  ) : (
+                    <span className="text-[11px] text-amber-600 dark:text-amber-400 font-bold normal-case">
+                      1 Kereliğine Hedef Tarih Giriniz
+                    </span>
                   )}
                 </label>
-                <div className="flex gap-2 items-center">
-                  <input
-                    type="date"
-                    disabled={!canEditTargetDate}
-                    className={`flex-1 ${inputClass} ${canEditTargetDate ? 'cursor-pointer' : 'opacity-70 cursor-not-allowed'} [color-scheme:light] dark:[color-scheme:dark]`}
-                    value={formData.target_date || ''}
-                    onChange={(e) => handleFormChange('target_date', e.target.value)}
-                    onBlur={handleBlur}
-                  />
+
+                <div className="space-y-2">
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="date"
+                      disabled={!canEditTargetDate}
+                      className={`flex-1 ${inputClass} ${
+                        canEditTargetDate ? 'cursor-pointer' : 'opacity-70 cursor-not-allowed'
+                      }`}
+                      value={formData.target_date || ''}
+                      onChange={(e) => handleFormChange('target_date', e.target.value)}
+                    />
+                  </div>
+
                   {canEditTargetDate && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const d = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
-                        handleFormChange('target_date', d);
-                      }}
-                      className="px-3 py-3 text-xs font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30 rounded-xl cursor-pointer whitespace-nowrap"
-                    >
-                      +1 Hafta
-                    </button>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        { label: '+1 Hafta', days: 7 },
+                        { label: '+2 Hafta', days: 14 },
+                        { label: '+1 Ay', days: 30 },
+                      ].map((preset) => (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          onClick={() => {
+                            const d = new Date(Date.now() + preset.days * 86400000)
+                              .toISOString()
+                              .split('T')[0];
+                            handleFormChange('target_date', d);
+                          }}
+                          className="px-2.5 py-1 text-[11px] font-bold bg-indigo-50 dark:bg-slate-800 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-slate-700 hover:bg-indigo-100 rounded-lg cursor-pointer transition-colors"
+                        >
+                          {preset.label} ({toDisplayDate(new Date(Date.now() + preset.days * 86400000).toISOString())})
+                        </button>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>
             </div>
 
-            {/* Alt Başlıklar */}
-            <div className="bg-gray-50 dark:bg-slate-700/30 p-4 rounded-lg border border-gray-200 dark:border-slate-600 space-y-4">
-              <div className="flex justify-between items-center">
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">
-                  Alt Başlıklar (Görevler)
-                </label>
+            {/* Alt Başlıklar (İlk Aksiyon: Hedef Tanımlamak) */}
+            <div className="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-2xl border border-slate-200/90 dark:border-slate-700 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <label className="block text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                    Aksiyon Adımları (İlk Adım: Hedef Tanımlamak)
+                  </label>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    İlk aksiyon otomatik olarak &quot;Hedef Tanımlamak&quot; gelir. Hedef tarih girildiğinde otomatik tamamlanır.
+                  </p>
+                </div>
                 {canManage && (
                   <button
                     type="button"
                     onClick={addSubAction}
-                    className="text-xs flex items-center gap-1 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-3 py-1.5 rounded-full hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors font-bold"
+                    className="text-xs flex items-center gap-1 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 px-3.5 py-2 rounded-xl hover:bg-indigo-200 transition-colors font-bold cursor-pointer self-start sm:self-auto"
                   >
-                    <Plus className="w-3 h-3" /> Alt Başlık Ekle
+                    <Plus className="w-3.5 h-3.5" /> Yeni Alt Aksiyon Ekle
                   </button>
                 )}
               </div>
 
               {formData.sub_actions?.length > 0 ? (
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   {formData.sub_actions.map((sub, idx) => {
                     const isLast = idx === formData.sub_actions.length - 1;
                     return (
                       <div
                         key={idx}
-                        className={`flex flex-col sm:flex-row gap-3 items-start sm:items-center bg-white dark:bg-slate-800 p-3 rounded border ${
+                        className={`flex flex-col sm:flex-row gap-3 items-start sm:items-center bg-white dark:bg-slate-800 p-3.5 rounded-xl border transition-colors ${
                           sub.completed
-                            ? 'border-green-400 bg-green-50 dark:bg-green-900/20'
-                            : 'border-gray-200 dark:border-slate-600'
+                            ? 'border-emerald-300 bg-emerald-50/50 dark:bg-emerald-900/20 dark:border-emerald-500/40'
+                            : 'border-slate-200 dark:border-slate-700'
                         }`}
                       >
                         <input
                           type="checkbox"
                           checked={Boolean(sub.completed)}
                           onChange={(e) => updateSubAction(idx, 'completed', e.target.checked)}
-                          onBlur={handleBlur}
-                          className="w-6 h-6 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 cursor-pointer flex-shrink-0"
-                          aria-label={sub.title || `Alt başlık ${idx + 1}`}
+                          className="w-5 h-5 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer flex-shrink-0"
                         />
                         <input
                           type="text"
-                          disabled={!canManage}
-                          placeholder="Alt başlık tanımı"
-                          className={`flex-1 w-full bg-transparent border-b border-gray-300 dark:border-slate-500 p-1 text-sm text-gray-800 dark:text-gray-100 outline-none focus:border-blue-500 ${
-                            canManage ? '' : 'border-none opacity-90 cursor-default'
-                          } ${sub.completed ? 'line-through text-gray-500' : ''}`}
+                          disabled={!canManage && idx === 0}
+                          placeholder="Alt aksiyon tanımı..."
+                          className={`flex-1 w-full bg-transparent border-b border-slate-200 dark:border-slate-600 p-1 text-sm font-semibold text-slate-800 dark:text-slate-100 outline-none focus:border-indigo-500 ${
+                            sub.completed ? 'line-through text-slate-400' : ''
+                          }`}
                           value={sub.title}
                           onChange={(e) => updateSubAction(idx, 'title', e.target.value)}
-                          onBlur={handleBlur}
                         />
-                        <div className="flex items-center gap-3 w-full sm:w-auto mt-2 sm:mt-0">
+                        <div className="flex items-center gap-3 w-full sm:w-auto">
                           {canManage ? (
                             <div className="flex-1 sm:w-32 flex items-center gap-2">
                               <input
@@ -542,36 +718,27 @@ export default function ActionModule({ onBack, currentUser }) {
                                 min="0"
                                 max="100"
                                 step="5"
-                                // Son satır kalan payı otomatik alır, elle değiştirilemez.
                                 disabled={isLast}
-                                className={`w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 ${
+                                className={`w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer dark:bg-slate-700 ${
                                   isLast ? 'opacity-50 cursor-not-allowed' : ''
                                 }`}
                                 value={sub.weight}
                                 onChange={(e) =>
                                   updateSubAction(idx, 'weight', toInt(e.target.value))
                                 }
-                                onBlur={handleBlur}
-                                aria-label="Ağırlık"
                               />
-                              <span className="text-xs font-bold text-gray-600 dark:text-gray-300 w-8">
+                              <span className="text-xs font-bold text-slate-600 dark:text-slate-300 w-9">
                                 %{sub.weight}
                               </span>
                             </div>
                           ) : (
-                            <div className="flex-1 sm:w-24 flex items-center gap-1">
-                              <span className="text-xs text-gray-500">Ağırlık:</span>
-                              <span className="font-bold text-sm text-gray-700 dark:text-gray-300">
-                                %{sub.weight}
-                              </span>
-                            </div>
+                            <span className="font-bold text-xs text-slate-500">%{sub.weight}</span>
                           )}
-                          {canManage && (
+                          {canManage && formData.sub_actions.length > 1 && (
                             <button
                               type="button"
                               onClick={() => removeSubAction(idx)}
-                              className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 p-1"
-                              aria-label="Alt başlığı sil"
+                              className="text-rose-500 hover:text-rose-700 p-1 cursor-pointer"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -581,57 +748,56 @@ export default function ActionModule({ onBack, currentUser }) {
                     );
                   })}
                 </div>
-              ) : (
-                <p className="text-sm text-gray-500 dark:text-gray-400 italic">
-                  Henüz alt başlık eklenmemiş.
-                </p>
-              )}
+              ) : null}
             </div>
 
-            {/* Bağlı Hata Kartı ve Gelişme Notları */}
-            {currentAction?.issue_id && (
-              <div className="bg-slate-900/90 p-5 rounded-2xl border border-slate-700/80 space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-                    <h3 className="font-bold text-white text-sm">
-                      Bağlı Hata Kartı Gelişme Notları (ID #{currentAction.issue_id})
-                    </h3>
+            {/* HATA KARTI & AKSİYON GELİŞME NOTLARI (Her Aksiyonda Görünür) */}
+            <div className="bg-violet-50/60 dark:bg-slate-900 p-5 rounded-2xl border border-violet-200/90 dark:border-slate-700 space-y-4">
+              <div className="flex items-center justify-between border-b border-violet-200/70 dark:border-slate-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+                  <h3 className="font-black text-slate-800 dark:text-white text-xs sm:text-sm uppercase tracking-wider">
+                    {currentAction?.issue_id
+                      ? `Hata Kartı (#${currentAction.issue_id}) & Aksiyon Gelişme Notları`
+                      : 'Gelişme Notları'}
+                  </h3>
+                </div>
+                <span className="text-[11px] font-bold text-violet-700 dark:text-violet-300 bg-violet-100 dark:bg-violet-500/20 px-2.5 py-0.5 rounded-full">
+                  {combinedNotes.length} Not
+                </span>
+              </div>
+
+              <div className="max-h-60 overflow-y-auto space-y-2.5 pr-1">
+                {combinedNotes.length === 0 ? (
+                  <div className="text-xs text-slate-500 italic py-3 text-center">
+                    Henüz gelişme notu bulunmuyor. Aşağıdan yeni gelişme notu ekleyebilirsiniz.
                   </div>
-                  {currentAction.hata_karti_turu && (
-                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-rose-500/15 text-rose-300 border border-rose-500/30">
-                      {currentAction.hata_karti_turu}
-                    </span>
-                  )}
-                </div>
-
-                <div className="max-h-60 overflow-y-auto space-y-2.5 pr-1">
-                  {parseNotes(currentAction.issue_notes).length === 0 ? (
-                    <div className="text-xs text-gray-500 italic py-2">
-                      Bu hata kartına henüz gelişme notu eklenmemiş.
-                    </div>
-                  ) : (
-                    parseNotes(currentAction.issue_notes).map((note, nIdx) => (
-                      <div
-                        key={nIdx}
-                        className="bg-slate-800/80 border border-slate-700/60 rounded-xl p-3 text-xs"
-                      >
-                        <div className="flex justify-between items-center text-[10px] text-gray-400 mb-1">
-                          <span className="font-bold text-amber-400">{note.sender || 'Kullanıcı'}</span>
-                          <span>{formatDateTime(note.timestamp)}</span>
-                        </div>
-                        <p className="text-gray-200 leading-relaxed whitespace-pre-wrap">{note.text}</p>
+                ) : (
+                  combinedNotes.map((note, nIdx) => (
+                    <div
+                      key={nIdx}
+                      className="bg-white dark:bg-slate-800 border border-violet-100 dark:border-slate-700 rounded-xl p-3 text-xs shadow-2xs"
+                    >
+                      <div className="flex justify-between items-center text-[10px] text-slate-500 dark:text-slate-400 mb-1">
+                        <span className="font-bold text-violet-700 dark:text-amber-400">
+                          {note.sender || 'Kullanıcı'}
+                        </span>
+                        <span>{formatDateTime(note.timestamp)}</span>
                       </div>
-                    ))
-                  )}
-                </div>
+                      <p className="text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
+                        {note.text}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
 
-                {/* Yeni Not Ekleme */}
-                <div className="flex gap-2 pt-2 border-t border-slate-800">
+              {isEditing && (
+                <div className="flex gap-2 pt-2 border-t border-violet-200/60 dark:border-slate-800">
                   <input
                     type="text"
-                    placeholder="Hata kartına yeni aksiyon notu ekleyin..."
-                    className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder:text-gray-500 focus:outline-none focus:border-amber-500"
+                    placeholder="Gelişme notu yazın (Hata kartına ve aksiyona işlenir)..."
+                    className="flex-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-slate-800 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-violet-500"
                     value={newIssueNote}
                     onChange={(e) => setNewIssueNote(e.target.value)}
                     onKeyDown={(e) => {
@@ -645,33 +811,47 @@ export default function ActionModule({ onBack, currentUser }) {
                     type="button"
                     onClick={handleAddIssueNote}
                     disabled={!newIssueNote.trim()}
-                    className="px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl cursor-pointer transition-all"
+                    className="px-4 py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl cursor-pointer transition-all"
                   >
-                    Notu Gönder
+                    Not Ekle
                   </button>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
-            <div className="bg-gray-50 dark:bg-slate-700/50 p-4 rounded-lg border border-gray-200 dark:border-slate-600">
-              <div className="flex justify-between text-sm font-bold text-gray-700 dark:text-gray-300 mb-4">
-                <span>Genel İlerleme Durumu (Otomatik Hesaplanır)</span>
-                <span className="text-blue-600 dark:text-blue-400 font-bold text-lg">
+            {/* Genel İlerleme Durumu */}
+            <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-200 dark:border-slate-700">
+              <div className="flex justify-between text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                <span>Genel İlerleme Durumu</span>
+                <span className="text-indigo-600 dark:text-indigo-400 font-black text-base">
                   %{formData.progress}
                 </span>
               </div>
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+              <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-3">
                 <div
-                  className={`h-3 rounded-full ${getProgressColor(formData.progress)} transition-all duration-500`}
+                  className={`h-3 rounded-full ${getProgressColor(formData.progress)} transition-all duration-300`}
                   style={{ width: `${formData.progress || 0}%` }}
                 />
               </div>
             </div>
 
-            {/* Enter ile gönderimi mümkün kılan gizli submit düğmesi. */}
-            <button type="submit" className="sr-only" tabIndex={-1}>
-              Kaydet
-            </button>
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleGoBack}
+                className="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs sm:text-sm cursor-pointer"
+              >
+                Listeye Dön
+              </button>
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 text-white font-bold text-xs sm:text-sm shadow-sm cursor-pointer disabled:opacity-50 flex items-center gap-2"
+              >
+                <Save className="w-4 h-4" />
+                {isSaving ? 'Kaydediliyor...' : 'Aksiyonu Kaydet'}
+              </button>
+            </div>
           </form>
         </div>
       )}
@@ -705,20 +885,16 @@ export default function ActionModule({ onBack, currentUser }) {
   );
 }
 
-function ActionList({ actions, onSelect, scope }) {
+function ActionList({ actions, onSelect, getCombinedNotes }) {
   if (actions.length === 0) {
     return (
-      <div className="p-10 text-center bg-slate-900/85 border border-slate-700/80 rounded-2xl shadow-xl">
-        <UserCheck className="w-10 h-10 text-amber-500/60 mx-auto mb-3" />
-        <h4 className="text-base font-bold text-gray-200 mb-1">
-          {scope === 'my'
-            ? 'Üzerinize Atanmış Görev Bulunmuyor'
-            : 'Filtrelere Uygun Aksiyon Bulunmuyor'}
+      <div className="p-10 text-center bg-white/95 dark:bg-slate-900/85 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xs">
+        <UserCheck className="w-10 h-10 text-indigo-400 mx-auto mb-3" />
+        <h4 className="text-base font-bold text-slate-800 dark:text-slate-200 mb-1">
+          Kayıtlı Aksiyon Bulunamadı
         </h4>
-        <p className="text-xs text-gray-400 max-w-md mx-auto">
-          {scope === 'my'
-            ? 'Şu anda adınıza atanmış herhangi bir görev yok. Yukarıdaki "Genel Görevler" sekmesinden fabrikanın tüm aksiyonlarını inceleyebilirsiniz.'
-            : 'Mevcut filtre kriterlerine uyan bir aksiyon kaydı bulunamadı.'}
+        <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+          Hata kartı açıldığında ilgili bölüm yöneticisine otomatik olarak aksiyon düşer veya yukarıdaki butondan yeni aksiyon tanımlayabilirsiniz.
         </p>
       </div>
     );
@@ -726,120 +902,154 @@ function ActionList({ actions, onSelect, scope }) {
 
   const statusBadge = (status) =>
     status === ACTION_STATUS.DONE
-      ? 'bg-green-100 text-green-800'
-      : 'bg-blue-100 text-blue-800';
+      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300'
+      : 'bg-sky-100 text-sky-800 border border-sky-200 dark:bg-sky-500/20 dark:text-sky-300';
 
   return (
     <div className="w-full">
       {/* Mobil Görünüm */}
       <div className="grid grid-cols-1 gap-4 md:hidden">
-        {actions.map((action) => (
-          <div
-            key={action.id}
-            onClick={() => onSelect(action)}
-            className="bg-white dark:bg-slate-800 rounded-lg shadow border border-gray-200 dark:border-slate-700 p-4 cursor-pointer hover:shadow-md transition-shadow"
-          >
-            <div className="flex justify-between items-start mb-3">
-              <span className={`px-2 py-1 rounded text-xs font-bold ${statusBadge(action.status)}`}>
-                {action.status}
-              </span>
-              <div className="flex flex-col items-end">
-                <span className="text-xs text-gray-500 dark:text-gray-400">
-                  İlerleme: %{action.progress || 0}
-                </span>
-                <div className="w-24 bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 mt-1">
-                  <div
-                    className={`h-1.5 rounded-full ${getProgressColor(action.progress)}`}
-                    style={{ width: `${action.progress || 0}%` }}
-                  />
+        {actions.map((action) => {
+          const notes = getCombinedNotes(action);
+          const lastNote = notes.length > 0 ? notes[notes.length - 1] : null;
+          return (
+            <div
+              key={action.id}
+              onClick={() => onSelect(action)}
+              className="bg-white/95 dark:bg-slate-900/95 rounded-2xl shadow-xs border border-slate-200 dark:border-slate-800 p-4 cursor-pointer hover:border-indigo-300 transition-all"
+            >
+              <div className="flex justify-between items-start mb-2.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${statusBadge(action.status)}`}>
+                    {action.status}
+                  </span>
+                  {action.issue_id && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                      Hata Kartı #{action.issue_id}
+                    </span>
+                  )}
                 </div>
+                <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                  %{action.progress || 0}
+                </span>
               </div>
-            </div>
-            <div className="mb-2">
-              <span className="text-xs text-gray-500 dark:text-gray-400 uppercase font-semibold">
-                Sorumlu Kişi
-              </span>
-              <p className="font-bold text-gray-900 dark:text-gray-100">{action.assignee_name}</p>
-            </div>
-            <div className="mb-3">
-              <span className="text-xs text-gray-500 dark:text-gray-400 uppercase font-semibold">
-                Aksiyon / İşlem
-              </span>
-              <p className="text-gray-800 dark:text-gray-200 text-sm line-clamp-2">
+
+              <p className="font-bold text-slate-900 dark:text-white text-sm mb-1">
+                {action.assignee_name}
+              </p>
+              <p className="text-slate-700 dark:text-slate-300 text-xs line-clamp-2 mb-2">
                 {action.action_content}
               </p>
-              {action.sub_actions?.length > 0 && (
-                <div className="mt-1 text-xs text-blue-500 font-semibold">
-                  {action.sub_actions.length} Alt Başlık
+
+              {lastNote && (
+                <div className="bg-violet-50 dark:bg-slate-800/80 border border-violet-100 dark:border-slate-700 rounded-xl p-2 mb-2 text-[11px] text-slate-600 dark:text-slate-300 truncate">
+                  <b className="text-violet-700 dark:text-violet-300">Not:</b> {lastNote.text}
                 </div>
               )}
+
+              <div className="text-[11px] text-slate-500 border-t border-slate-100 dark:border-slate-800 pt-2.5 flex justify-between items-center">
+                <span>
+                  İlk Aksiyon: <b className="text-slate-700 dark:text-slate-200">{action.sub_actions?.[0]?.title || 'Hedef Tanımlamak'}</b>
+                </span>
+                <span>
+                  Hedef:{' '}
+                  <b className="text-indigo-700 dark:text-amber-300">
+                    {action.target_date ? formatDate(action.target_date) : 'Bekleniyor (1 Kerelik)'}
+                  </b>
+                </span>
+              </div>
             </div>
-            <div className="text-xs text-gray-600 dark:text-gray-400 border-t border-gray-100 dark:border-slate-700 pt-3">
-              <span className="font-semibold">Hedef Tarih:</span> {formatDate(action.target_date)}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Masaüstü Görünüm */}
-      <div className="hidden md:block bg-white dark:bg-slate-800 shadow-md rounded-lg overflow-hidden border border-gray-200 dark:border-slate-700">
+      <div className="hidden md:block bg-white/95 dark:bg-slate-900/95 shadow-sm rounded-3xl overflow-hidden border border-slate-200/90 dark:border-slate-800">
         <div className="overflow-x-auto">
-          <table className="min-w-full leading-normal">
-            <thead>
+          <table className="min-w-full text-xs text-left">
+            <thead className="bg-slate-50/90 dark:bg-slate-950/70 text-slate-500 dark:text-slate-400 uppercase tracking-wider text-[11px] border-b border-slate-200 dark:border-slate-800">
               <tr>
-                {['Durum', 'Sorumlu Kişi', 'İşlem / Konu', 'Hedef Tarih', 'İlerleme'].map((head) => (
-                  <th
-                    key={head}
-                    className="px-5 py-3 border-b-2 border-gray-200 dark:border-slate-700 bg-gray-100 dark:bg-slate-700 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider"
-                  >
-                    {head}
-                  </th>
-                ))}
+                <th className="px-4 py-3.5">Durum</th>
+                <th className="px-4 py-3.5">Sorumlu Bölüm / Kişi</th>
+                <th className="px-4 py-3.5">Aksiyon Konusu & İlk Adım</th>
+                <th className="px-4 py-3.5">Gelişme Notları</th>
+                <th className="px-4 py-3.5">Hedef Tarih</th>
+                <th className="px-4 py-3.5">İlerleme</th>
               </tr>
             </thead>
-            <tbody>
-              {actions.map((action) => (
-                <tr
-                  key={action.id}
-                  onClick={() => onSelect(action)}
-                  className="hover:bg-gray-50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors border-b border-gray-200 dark:border-slate-700"
-                >
-                  <td className="px-5 py-4 bg-white dark:bg-slate-800 text-sm">
-                    <span
-                      className={`px-2 py-1 rounded text-xs font-bold ${statusBadge(action.status)}`}
-                    >
-                      {action.status}
-                    </span>
-                  </td>
-                  <td className="px-5 py-4 bg-white dark:bg-slate-800 text-sm font-bold text-gray-900 dark:text-gray-100">
-                    {action.assignee_name}
-                  </td>
-                  <td className="px-5 py-4 bg-white dark:bg-slate-800 text-sm text-gray-800 dark:text-gray-200">
-                    <div className="line-clamp-2">{action.action_content}</div>
-                    {action.sub_actions?.length > 0 && (
-                      <div className="mt-1 text-xs text-blue-500 font-semibold">
-                        {action.sub_actions.length} Alt Başlık
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-5 py-4 bg-white dark:bg-slate-800 text-sm text-gray-800 dark:text-gray-200">
-                    {formatDate(action.target_date)}
-                  </td>
-                  <td className="px-5 py-4 bg-white dark:bg-slate-800 text-sm">
-                    <div className="flex items-center gap-2">
-                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 min-w-[100px]">
-                        <div
-                          className={`h-2.5 rounded-full ${getProgressColor(action.progress)}`}
-                          style={{ width: `${action.progress || 0}%` }}
-                        />
-                      </div>
-                      <span className="font-bold text-xs text-gray-600 dark:text-gray-300">
-                        %{action.progress || 0}
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+              {actions.map((action) => {
+                const notes = getCombinedNotes(action);
+                const lastNote = notes.length > 0 ? notes[notes.length - 1] : null;
+                return (
+                  <tr
+                    key={action.id}
+                    onClick={() => onSelect(action)}
+                    className="hover:bg-slate-50/90 dark:hover:bg-slate-800/50 cursor-pointer transition-colors"
+                  >
+                    <td className="px-4 py-3.5 whitespace-nowrap">
+                      <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${statusBadge(action.status)}`}>
+                        {action.status}
                       </span>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-4 py-3.5 font-bold text-slate-900 dark:text-white whitespace-nowrap">
+                      {action.assignee_name}
+                    </td>
+                    <td className="px-4 py-3.5 max-w-sm">
+                      <div className="font-semibold text-slate-800 dark:text-slate-100 truncate">
+                        {action.action_content}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        {action.issue_id && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-500/15 dark:text-rose-300">
+                            Kart #{action.issue_id}
+                          </span>
+                        )}
+                        <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold">
+                          1. Adım: {action.sub_actions?.[0]?.title || 'Hedef Tanımlamak'}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3.5 max-w-xs">
+                      {lastNote ? (
+                        <div className="bg-violet-50/80 dark:bg-slate-800 border border-violet-200/70 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-[11px] text-slate-700 dark:text-slate-300 truncate">
+                          <span className="font-bold text-violet-700 dark:text-violet-300">
+                            {lastNote.sender}:{' '}
+                          </span>
+                          {lastNote.text}
+                        </div>
+                      ) : (
+                        <span className="text-slate-400 italic text-[11px]">Not eklenmemiş</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3.5 whitespace-nowrap">
+                      {action.target_date ? (
+                        <span className="inline-flex items-center gap-1 font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 px-2.5 py-1 rounded-full text-[11px]">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          {formatDate(action.target_date)}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 font-bold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-500/15 border border-amber-300 dark:border-amber-500/30 px-2.5 py-1 rounded-full text-[11px]">
+                          Hedef Girilecek (1 Kerelik)
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3.5 w-36">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 bg-slate-200 dark:bg-slate-700 rounded-full h-2">
+                          <div
+                            className={`h-2 rounded-full ${getProgressColor(action.progress)}`}
+                            style={{ width: `${action.progress || 0}%` }}
+                          />
+                        </div>
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300 w-9 text-right">
+                          %{action.progress || 0}
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

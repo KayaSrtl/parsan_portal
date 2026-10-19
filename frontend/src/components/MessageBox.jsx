@@ -1,7 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { 
-  Bell, Mail, CheckCheck, Send, X, ExternalLink, 
-  Flame, CheckCircle, Info, Clock, Plus
+import {
+  Bell,
+  Mail,
+  CheckCheck,
+  Send,
+  X,
+  ExternalLink,
+  Flame,
+  CheckCircle,
+  Info,
+  Clock,
+  Plus,
 } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { isManager } from '../lib/constants';
@@ -12,7 +21,7 @@ export default function MessageBox({ currentUser, onNavigate }) {
   const [loading, setLoading] = useState(false);
   const [showSendModal, setShowSendModal] = useState(false);
   const [filter, setFilter] = useState('all'); // 'all' | 'unread'
-  
+
   // Yeni mesaj formu state
   const [targetUserId, setTargetUserId] = useState('');
   const [msgTitle, setMsgTitle] = useState('');
@@ -24,31 +33,31 @@ export default function MessageBox({ currentUser, onNavigate }) {
   const popoverRef = useRef(null);
 
   const canBroadcast = isManager(currentUser);
+  const isGuest = currentUser?.role === 'misafir' || currentUser?.isGuest;
 
   // Bildirimleri getir
   const fetchNotifications = async () => {
+    if (isGuest) return;
     try {
       setLoading(true);
       const data = await apiFetch('/notifications');
       setNotifications(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error('Bildirimler yüklenemedi:', err);
+    } catch {
+      // Sessizce geç
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (currentUser) {
-      // oxlint-disable-next-line react/set-state-in-effect -- dış sistemle (sunucu) senkronizasyon
+    if (currentUser && !isGuest) {
       fetchNotifications();
-      // 30 saniyede bir yeni bildirimleri yokla; sekme arka plandayken boşuna istek atma.
       const interval = setInterval(() => {
         if (!document.hidden) fetchNotifications();
       }, 30000);
       return () => clearInterval(interval);
     }
-  }, [currentUser]);
+  }, [currentUser, isGuest]);
 
   // Dışarı tıklayınca kapatma
   useEffect(() => {
@@ -62,6 +71,9 @@ export default function MessageBox({ currentUser, onNavigate }) {
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
+
+  // Misafir kullanıcılar için mesaj kutusu gösterilmez
+  if (isGuest) return null;
 
   // Kullanıcı listesini getir (yeni mesaj için)
   const fetchUsers = async () => {
@@ -83,9 +95,7 @@ export default function MessageBox({ currentUser, onNavigate }) {
     if (e) e.stopPropagation();
     try {
       await apiFetch(`/notifications/${id}/read`, { method: 'PUT' });
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, read: 1 } : n))
-      );
+      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: 1 } : n)));
     } catch (err) {
       console.error('Okundu işaretlenemedi:', err);
     }
@@ -133,7 +143,6 @@ export default function MessageBox({ currentUser, onNavigate }) {
   const handleClickNotification = (n) => {
     if (!n.read) handleMarkAsRead(n.id);
     if (n.link && onNavigate) {
-      // link: e.g. "?app=aksiyon_modulu"
       const params = new URLSearchParams(n.link.replace('?', ''));
       const app = params.get('app');
       const tab = params.get('tab');
@@ -145,60 +154,50 @@ export default function MessageBox({ currentUser, onNavigate }) {
   };
 
   const unreadCount = notifications.filter((n) => !n.read).length;
-  const filteredNotifications = filter === 'unread' 
-    ? notifications.filter((n) => !n.read) 
-    : notifications;
+  const filteredNotifications =
+    filter === 'unread' ? notifications.filter((n) => !n.read) : notifications;
 
   const getTypeIcon = (type) => {
     switch (type) {
       case 'warning':
-        return <Flame className="w-4 h-4 text-red-400" />;
+        return <Flame className="w-4 h-4 text-rose-500" />;
       case 'action':
-        return <CheckCircle className="w-4 h-4 text-amber-400" />;
+        return <CheckCircle className="w-4 h-4 text-amber-500" />;
       default:
-        return <Info className="w-4 h-4 text-blue-400" />;
+        return <Info className="w-4 h-4 text-indigo-500" />;
     }
   };
 
   return (
     <div className="relative" ref={popoverRef}>
-      {/* =========================================================================
-          NAVBAR MESAJ / BİLDİRİM BUTONU
-          ========================================================================= */}
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 rounded-xl bg-slate-800/90 hover:bg-slate-700/80 border border-slate-700/80 hover:border-amber-500/50 text-gray-300 hover:text-amber-300 transition-all duration-200 cursor-pointer shadow-sm flex items-center justify-center"
+        className="relative p-2 rounded-xl bg-slate-100 dark:bg-slate-800/90 hover:bg-indigo-50 dark:hover:bg-slate-700/80 border border-slate-200/80 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-amber-300 transition-all duration-200 cursor-pointer shadow-xs flex items-center justify-center"
         title="Mesaj Kutusu ve Bildirimler"
         aria-label="Mesaj Kutusu"
       >
         <Mail className="w-4 h-4 md:w-5 md:h-5" />
 
-        {/* Okunmamış Bildirim Rozeti (Yanıp Sönen Kor Efekti) */}
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full bg-red-600 text-[10px] font-black text-white shadow-[0_0_8px_rgba(239,68,68,0.8)] animate-pulse">
+          <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full bg-rose-500 text-[10px] font-black text-white shadow-sm animate-pulse">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
       </button>
 
-      {/* =========================================================================
-          BİLDİRİM / MESAJ KUTUSU AÇILIR PANELİ (POPOVER)
-          ========================================================================= */}
       {isOpen && (
-        <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-slate-900/95 border border-slate-700/80 rounded-2xl shadow-2xl z-50 overflow-hidden animate-fade-in text-white">
-          {/* Üst Zarif Fırın Çizgisi */}
+        <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-white dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700/80 rounded-2xl shadow-2xl z-50 overflow-hidden animate-fade-in text-slate-800 dark:text-white">
           <div className="forge-line-gradient h-1 w-full" />
 
-          {/* Panel Başlığı */}
-          <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+          <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Bell className="w-4 h-4 text-amber-400" />
-              <h3 className="font-black text-sm uppercase tracking-wider text-white">
+              <Bell className="w-4 h-4 text-indigo-500 dark:text-amber-400" />
+              <h3 className="font-black text-xs sm:text-sm uppercase tracking-wider text-slate-800 dark:text-white">
                 Mesajlar & Bildirimler
               </h3>
               {unreadCount > 0 && (
-                <span className="px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/40 text-[10px] font-bold">
+                <span className="px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-500/40 text-[10px] font-bold">
                   {unreadCount} yeni
                 </span>
               )}
@@ -209,7 +208,7 @@ export default function MessageBox({ currentUser, onNavigate }) {
                 <button
                   type="button"
                   onClick={handleMarkAllRead}
-                  className="p-1 rounded text-xs text-gray-400 hover:text-amber-400 hover:bg-slate-800 transition-colors"
+                  className="p-1.5 rounded-lg text-xs text-slate-500 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                   title="Tümünü Okundu Say"
                 >
                   <CheckCheck className="w-4 h-4" />
@@ -219,7 +218,7 @@ export default function MessageBox({ currentUser, onNavigate }) {
                 <button
                   type="button"
                   onClick={handleOpenSendModal}
-                  className="p-1 rounded text-xs text-amber-400 hover:text-amber-300 hover:bg-slate-800 transition-colors"
+                  className="p-1.5 rounded-lg text-xs text-indigo-600 dark:text-amber-400 hover:bg-indigo-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                   title="Yeni Mesaj / Bildirim Gönder"
                 >
                   <Plus className="w-4 h-4" />
@@ -228,15 +227,14 @@ export default function MessageBox({ currentUser, onNavigate }) {
             </div>
           </div>
 
-          {/* Filtre Sekmeleri */}
-          <div className="flex border-b border-slate-800 bg-slate-950/60 p-1 text-xs">
+          <div className="flex border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 p-1 text-xs">
             <button
               type="button"
               onClick={() => setFilter('all')}
-              className={`flex-1 py-1.5 font-bold rounded-lg transition-colors ${
+              className={`flex-1 py-1.5 font-bold rounded-lg transition-colors cursor-pointer ${
                 filter === 'all'
-                  ? 'bg-slate-800 text-amber-400'
-                  : 'text-gray-400 hover:text-gray-200'
+                  ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-amber-400 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
               }`}
             >
               Tümü ({notifications.length})
@@ -244,25 +242,24 @@ export default function MessageBox({ currentUser, onNavigate }) {
             <button
               type="button"
               onClick={() => setFilter('unread')}
-              className={`flex-1 py-1.5 font-bold rounded-lg transition-colors ${
+              className={`flex-1 py-1.5 font-bold rounded-lg transition-colors cursor-pointer ${
                 filter === 'unread'
-                  ? 'bg-slate-800 text-amber-400'
-                  : 'text-gray-400 hover:text-gray-200'
+                  ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-amber-400 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
               }`}
             >
               Okunmamış ({unreadCount})
             </button>
           </div>
 
-          {/* Bildirim Listesi */}
-          <div className="max-h-80 overflow-y-auto divide-y divide-slate-800/80 scrollbar-thin">
+          <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/80 scrollbar-thin">
             {loading && notifications.length === 0 ? (
-              <div className="p-6 text-center text-xs text-gray-400 animate-pulse">
+              <div className="p-6 text-center text-xs text-slate-400 animate-pulse">
                 Bildirimler yükleniyor...
               </div>
             ) : filteredNotifications.length === 0 ? (
-              <div className="p-8 text-center text-xs text-gray-400 flex flex-col items-center gap-2">
-                <CheckCircle className="w-8 h-8 text-gray-600" />
+              <div className="p-8 text-center text-xs text-slate-400 flex flex-col items-center gap-2">
+                <CheckCircle className="w-8 h-8 text-emerald-400/60" />
                 <span>Herhangi bir bildirim bulunmuyor.</span>
               </div>
             ) : (
@@ -270,35 +267,33 @@ export default function MessageBox({ currentUser, onNavigate }) {
                 <div
                   key={n.id}
                   onClick={() => handleClickNotification(n)}
-                  className={`p-3.5 hover:bg-slate-800/70 transition-colors cursor-pointer flex gap-3 items-start ${
-                    !n.read ? 'bg-amber-500/5' : ''
+                  className={`p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/70 transition-colors cursor-pointer flex gap-3 items-start ${
+                    !n.read ? 'bg-indigo-50/40 dark:bg-amber-500/5' : ''
                   }`}
                 >
-                  {/* Tür İkonu */}
-                  <div className="p-2 rounded-xl bg-slate-800/90 border border-slate-700/80 flex-shrink-0 mt-0.5">
+                  <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700/80 flex-shrink-0 mt-0.5">
                     {getTypeIcon(n.type)}
                   </div>
 
-                  {/* İçerik */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-1 mb-1">
-                      <span className="font-bold text-xs text-gray-100 truncate">
+                      <span className="font-bold text-xs text-slate-800 dark:text-slate-100 truncate">
                         {n.title}
                       </span>
                       {!n.read && (
-                        <span className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0 shadow-[0_0_6px_rgba(245,158,11,0.8)]" />
+                        <span className="w-2 h-2 rounded-full bg-indigo-500 dark:bg-amber-500 flex-shrink-0" />
                       )}
                     </div>
-                    <p className="text-gray-300 text-[11px] leading-relaxed line-clamp-2">
+                    <p className="text-slate-600 dark:text-slate-300 text-[11px] leading-relaxed line-clamp-2">
                       {n.message}
                     </p>
-                    <div className="flex items-center justify-between mt-2 pt-1 text-[10px] text-gray-400">
+                    <div className="flex items-center justify-between mt-2 pt-1 text-[10px] text-slate-400">
                       <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3 text-gray-500" />
+                        <Clock className="w-3 h-3 text-slate-400" />
                         {n.sender_name || 'Sistem'}
                       </span>
                       {n.link && (
-                        <span className="text-amber-400 flex items-center gap-0.5 font-semibold hover:underline">
+                        <span className="text-indigo-600 dark:text-amber-400 flex items-center gap-0.5 font-semibold hover:underline">
                           Git <ExternalLink className="w-2.5 h-2.5" />
                         </span>
                       )}
@@ -309,40 +304,36 @@ export default function MessageBox({ currentUser, onNavigate }) {
             )}
           </div>
 
-          {/* Alt Kısım */}
-          <div className="p-2 bg-slate-950/80 border-t border-slate-800 text-center text-[10px] text-gray-400">
+          <div className="p-2 bg-slate-50 dark:bg-slate-950/80 border-t border-slate-100 dark:border-slate-800 text-center text-[10px] text-slate-400">
             Dövme Hattı & 5S Bildirim Sistemi
           </div>
         </div>
       )}
 
-      {/* =========================================================================
-          YÖNETİCİ İÇİN YENİ MESAJ / BİLDİRİM GÖNDERME MODALI
-          ========================================================================= */}
       {showSendModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-          <div className="relative w-full max-w-md bg-slate-900 border-2 border-amber-500/50 rounded-2xl shadow-2xl p-6 text-white animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+          <div className="relative w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-6 text-slate-800 dark:text-white animate-fade-in">
             <button
               type="button"
               onClick={() => setShowSendModal(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-white"
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <h3 className="text-lg font-black uppercase tracking-wider text-amber-400 flex items-center gap-2 mb-4">
+            <h3 className="text-base font-black uppercase tracking-wider text-indigo-600 dark:text-amber-400 flex items-center gap-2 mb-4">
               <Send className="w-5 h-5" /> Yeni Bildirim / Mesaj Gönder
             </h3>
 
             <form onSubmit={handleSendNotification} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold uppercase text-gray-300 mb-1">
+                <label className="block text-xs font-bold uppercase text-slate-500 dark:text-slate-300 mb-1">
                   Alıcı Kişi
                 </label>
                 <select
                   value={targetUserId}
                   onChange={(e) => setTargetUserId(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-400"
                 >
                   <option value="">Tüm Fabrika / Herkes</option>
                   {usersList.map((u) => (
@@ -354,13 +345,13 @@ export default function MessageBox({ currentUser, onNavigate }) {
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase text-gray-300 mb-1">
+                <label className="block text-xs font-bold uppercase text-slate-500 dark:text-slate-300 mb-1">
                   Bildirim Türü
                 </label>
                 <select
                   value={msgType}
                   onChange={(e) => setMsgType(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-400"
                 >
                   <option value="info">Bilgilendirme (Mavi)</option>
                   <option value="action">Aksiyon / Görev (Sarı/Amber)</option>
@@ -369,7 +360,7 @@ export default function MessageBox({ currentUser, onNavigate }) {
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase text-gray-300 mb-1">
+                <label className="block text-xs font-bold uppercase text-slate-500 dark:text-slate-300 mb-1">
                   Başlık
                 </label>
                 <input
@@ -378,12 +369,12 @@ export default function MessageBox({ currentUser, onNavigate }) {
                   value={msgTitle}
                   onChange={(e) => setMsgTitle(e.target.value)}
                   placeholder="Örn: 5S Hat Temizliği ve Denetim Hatırlatması"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-400"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase text-gray-300 mb-1">
+                <label className="block text-xs font-bold uppercase text-slate-500 dark:text-slate-300 mb-1">
                   Mesaj İçeriği
                 </label>
                 <textarea
@@ -392,7 +383,7 @@ export default function MessageBox({ currentUser, onNavigate }) {
                   value={msgContent}
                   onChange={(e) => setMsgContent(e.target.value)}
                   placeholder="İlgili personellere iletmek istediğiniz not..."
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-400"
                 />
               </div>
 
@@ -400,14 +391,14 @@ export default function MessageBox({ currentUser, onNavigate }) {
                 <button
                   type="button"
                   onClick={() => setShowSendModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-gray-300"
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 cursor-pointer"
                 >
                   Vazgeç
                 </button>
                 <button
                   type="submit"
                   disabled={isSending}
-                  className="px-5 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-amber-500 hover:bg-amber-400 text-slate-950 flex items-center gap-1.5 shadow-lg disabled:opacity-50"
+                  className="px-5 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-indigo-500 hover:bg-indigo-600 text-white flex items-center gap-1.5 shadow-sm disabled:opacity-50 cursor-pointer"
                 >
                   <Send className="w-3.5 h-3.5" />
                   {isSending ? 'Gönderiliyor...' : 'Gönder'}

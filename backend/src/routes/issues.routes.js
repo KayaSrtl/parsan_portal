@@ -78,7 +78,7 @@ router.post(
     );
 
     // Açılan hata kartı ilgili bölüm yöneticisine otomatik aksiyon modülüne düşer.
-    // İlk aksiyonu 'Hedef Tanımlamak' olur.
+    // İlk aksiyonu 'Hedef Tanımlamak' olur ve 1 kereliğine hedef tarih girmesi için target_date boş başlatılır.
     try {
       const assignee = data.ilgili_bolum
         ? `${data.ilgili_bolum} Yöneticisi`
@@ -91,16 +91,16 @@ router.post(
 
       await run(
         `INSERT INTO actions
-          (user_id, assignee_name, action_content, target_date, progress, status, created_at, sub_actions, issue_id)
-         VALUES (?, ?, ?, ?, 0, 'Açık', ?, ?, ?)`,
+          (user_id, assignee_name, action_content, target_date, progress, status, created_at, sub_actions, issue_id, notes, target_date_locked)
+         VALUES (?, ?, ?, '', 0, 'Açık', ?, ?, ?, ?, 0)`,
         [
           req.user.id || 0,
           assignee,
           actionContent,
-          finalTargetDate,
           new Date().toISOString(),
           initialSubs,
           lastID,
+          data.gelisme_notlari || '[]',
         ]
       );
     } catch (actErr) {
@@ -120,11 +120,6 @@ router.put(
 
     const oldIssue = await get('SELECT * FROM issues WHERE id = ?', [issueId]);
     if (!oldIssue) return res.status(404).json({ error: 'Kayıt bulunamadı' });
-
-    // Standart kullanıcı yalnizca kendi kaydini duzenleyebilir.
-    if (!isManager(req.user) && oldIssue.user_id !== req.user.id) {
-      return res.status(403).json({ error: 'Bu kaydı düzenleme yetkiniz yok' });
-    }
 
     const revisions = parseArray(oldIssue.revizyon_gecmisi);
     revisions.push({

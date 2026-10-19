@@ -3,22 +3,24 @@
 
 body {
   margin: 0;
-  @apply bg-gray-100 text-gray-800;
+  background-color: #f4f7fb;
+  color: #1e293b;
   color-scheme: light;
 }
 
 html.dark body {
-  @apply bg-slate-950 text-gray-100;
+  background-color: #0f172a;
+  color: #f1f5f9;
   color-scheme: dark;
 }
 
 /* ==========================================================================
-   PARSAN ENDÜSTRİYEL DÖVME ÇELİK TEMASI & HAFİF EFEKTLER
+   PARSAN MODERN PASTEL ENDÜSTRİYEL TEMASI & HAFİF EFEKTLER
    --------------------------------------------------------------------------
    GPU PERFORMANSI:
    Sayfada filtre (blur, drop-shadow) döngüleri tamamen kaldırılmıştır.
-   Tüm görsel efektler saf CSS gradientleri ve hardware-accelerated transform
-   üzerinden sıfıra yakın GPU tüketimi ile çalışır.
+   Tüm görsel efektler saf CSS pastel gradientleri ve hardware-accelerated
+   transform üzerinden sıfıra yakın GPU tüketimi ile çalışır.
    ========================================================================== */
 
 :root {
@@ -26,17 +28,17 @@ html.dark body {
   --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Yüksek Fırın Mikro-Kıvılcım Hareketi (Sıfır GPU Maliyeti) */
+/* Mikro-Parçacık Hareketi (Sıfır GPU Maliyeti) */
 @keyframes emberRiseSoft {
   0% {
     transform: translate3d(0, 0, 0);
     opacity: 0;
   }
   15% {
-    opacity: 0.7;
+    opacity: 0.55;
   }
   70% {
-    opacity: 0.5;
+    opacity: 0.4;
     transform: translate3d(6px, -120px, 0);
   }
   100% {
@@ -85,7 +87,7 @@ html.dark body {
   }
 }
 
-/* Canlı Operasyonel Gösterge Nabzı (Sadece transform/opacity, filtre yok) */
+/* Canlı Operasyonel Gösterge Nabzı */
 @keyframes statusBeacon {
   0%, 100% {
     transform: scale(1);
@@ -130,26 +132,42 @@ html.dark body {
 
 /* Endüstriyel Teknik Izgara Arka Plan Dokusu */
 .bg-industrial-grid {
-  background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-image: radial-gradient(rgba(100, 116, 139, 0.14) 1px, transparent 1px);
   background-size: 28px 28px;
 }
 
-/* Kurumsal Endüstriyel Çelik & Sıcak Amber Başlık Geçişleri */
+html.dark .bg-industrial-grid {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+}
+
+/* Kurumsal Modern Pastel & Çelik Başlık Geçişleri */
 .forge-text-gradient {
+  background: linear-gradient(135deg, #1e293b 20%, #334155 60%, #475569 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+html.dark .forge-text-gradient {
   background: linear-gradient(135deg, #ffffff 30%, #e2e8f0 70%, #cbd5e1 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .amber-text-gradient {
-  background: linear-gradient(135deg, #ef4444 0%, #f97316 45%, #fbbf24 100%);
+  background: linear-gradient(135deg, #e11d48 0%, #f97316 50%, #d97706 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
-/* Endüstriyel sıcak kırmızı & kor fırın çizgisi */
+html.dark .amber-text-gradient {
+  background: linear-gradient(135deg, #fb7185 0%, #fb923c 50%, #fbbf24 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Pastel modern ayrım çizgisi */
 .forge-line-gradient {
-  background: linear-gradient(90deg, transparent 0%, rgba(220, 38, 38, 0.3) 12%, rgba(239, 68, 68, 0.95) 38%, rgba(245, 158, 11, 0.95) 62%, rgba(220, 38, 38, 0.3) 88%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, rgba(244, 63, 94, 0.35) 15%, rgba(251, 146, 60, 0.75) 40%, rgba(56, 189, 248, 0.75) 65%, rgba(16, 185, 129, 0.35) 85%, transparent 100%);
 }
 
 /* Arka plan atmosferi: izole katman */
@@ -162,6 +180,17 @@ html.tab-hidden *,
 html.tab-hidden *::before,
 html.tab-hidden *::after {
   animation-play-state: paused !important;
+}
+
+/* Yazdırma ve PDF çıktısı için temiz A4 kuralları */
+@media print {
+  body, html, html.dark body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
+  .forge-atmosphere, nav, .no-print {
+    display: none !important;
+  }
 }
 
 /* İşletim sistemi "hareketi azalt" derse animasyonları kapat */

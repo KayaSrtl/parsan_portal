@@ -65,7 +65,9 @@ const toDate = (value) => {
 
 /** Kayıt çözülmüş mü, gecikmiş mi, yoksa süresi var mı? */
 const classify = (issue, now) => {
-  if (issue.mevcut_durum === STATUS.GREEN) return 'resolved';
+  if (issue.mevcut_durum === STATUS.CLOSED || issue.mevcut_durum === STATUS.GREEN) {
+    return 'resolved';
+  }
   const target = toDate(issue.hedef_tarih);
   return target && target < now ? 'overdue' : 'open';
 };
@@ -152,7 +154,9 @@ export default function AnalyticsView({ issues }) {
 
       const bucket = map.get(key);
       bucket.Açılan++;
-      if (issue.mevcut_durum === STATUS.GREEN) bucket.Çözülen++;
+      if (issue.mevcut_durum === STATUS.CLOSED || issue.mevcut_durum === STATUS.GREEN) {
+        bucket.Çözülen++;
+      }
     });
 
     return [...map.values()].sort((a, b) => a.key.localeCompare(b.key));

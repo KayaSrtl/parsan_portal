@@ -31,19 +31,19 @@ export const getStatusColor = (status) => {
   switch (status) {
     case 'Açık':
     case STATUS.RED:
-      return 'bg-rose-500/15 text-rose-300 border border-rose-500/30';
+      return 'bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-500/15 dark:text-rose-300 dark:border-rose-500/30';
     case 'Beklemede':
     case STATUS.YELLOW:
-      return 'bg-amber-500/15 text-amber-300 border border-amber-500/30';
+      return 'bg-amber-100 text-amber-800 border border-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/30';
     case 'Kapalı':
     case STATUS.GREEN:
-      return 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30';
+      return 'bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30';
     case 'Kırmızı Hata Kartı':
-      return 'bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold';
+      return 'bg-rose-100 text-rose-800 border border-rose-300 dark:bg-rose-500/20 dark:text-rose-300 dark:border-rose-500/40 font-bold';
     case 'Sarı Hata Kartı':
-      return 'bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold';
+      return 'bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/40 font-bold';
     default:
-      return 'bg-slate-800 text-slate-300 border border-slate-700';
+      return 'bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
   }
 };
 

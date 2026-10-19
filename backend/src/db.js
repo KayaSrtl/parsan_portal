@@ -147,6 +147,8 @@ async function addColumnIfMissing(table, column, definition) {
 async function migrate() {
   await addColumnIfMissing('actions', 'sub_actions', "TEXT DEFAULT '[]'");
   await addColumnIfMissing('actions', 'issue_id', 'INTEGER');
+  await addColumnIfMissing('actions', 'notes', "TEXT DEFAULT '[]'");
+  await addColumnIfMissing('actions', 'target_date_locked', 'INTEGER DEFAULT 0');
   await addColumnIfMissing('issues', 'hata_karti_turu', "TEXT DEFAULT 'Kırmızı Hata Kartı'");
 
   // Mevcut kayıtların durum/tür alanlarını yeni modele uyumlu hale getir
@@ -155,6 +157,34 @@ async function migrate() {
     await run(`UPDATE issues SET hata_karti_turu = 'Sarı Hata Kartı' WHERE mevcut_durum = 'Sarı'`);
     await run(`UPDATE issues SET mevcut_durum = 'Kapalı' WHERE mevcut_durum = 'Yeşil'`);
     await run(`UPDATE issues SET mevcut_durum = 'Açık' WHERE mevcut_durum IN ('Kırmızı', 'Sarı')`);
+    await run(
+      `UPDATE issues SET hedef_tarih = datetime(bildirim_zamani, '+7 days') WHERE (hedef_tarih IS NULL OR hedef_tarih = '') AND bildirim_zamani IS NOT NULL`
+    );
+
+    // Henüz aksiyona bağlanmamış açık hata kartları için otomatik aksiyon oluştur
+    const unlinkedIssues = await all(
+      `SELECT i.* FROM issues i LEFT JOIN actions a ON a.issue_id = i.id WHERE a.id IS NULL`
+    );
+    for (const iss of unlinkedIssues) {
+      const assignee = iss.ilgili_bolum ? `${iss.ilgili_bolum} Yöneticisi` : 'İlgili Bölüm Sorumlusu';
+      const areaPrefix = iss.bildirilen_alan ? `[${iss.bildirilen_alan.toUpperCase()}] ` : '';
+      const cardType = iss.hata_karti_turu || 'Kırmızı Hata Kartı';
+      const actionContent = `${areaPrefix}${cardType} #${iss.id}: ${iss.problem_tanimi || ''}`;
+      const initialSubs = JSON.stringify([{ title: 'Hedef Tanımlamak', weight: 100, completed: false }]);
+      await run(
+        `INSERT INTO actions (user_id, assignee_name, action_content, target_date, progress, status, created_at, sub_actions, issue_id, notes, target_date_locked)
+         VALUES (?, ?, ?, '', 0, 'Açık', ?, ?, ?, ?, 0)`,
+        [
+          iss.user_id || 0,
+          assignee,
+          actionContent,
+          iss.bildirim_zamani || new Date().toISOString(),
+          initialSubs,
+          iss.id,
+          iss.gelisme_notlari || '[]',
+        ]
+      );
+    }
   } catch (err) {
     console.warn('[db] Migration veri dönüşüm uyarısı:', err.message);
   }

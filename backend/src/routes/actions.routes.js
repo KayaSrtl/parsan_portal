@@ -1,6 +1,6 @@
 const express = require('express');
 const { get, all, run } = require('../db');
-const { authenticateToken, requireRole, isManager, MANAGER_ROLES } = require('../middleware/auth');
+const { authenticateToken, requireRole, isManager, MANAGER_ROLES, ROLES } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/errors');
 const { parseArray } = require('../utils/json');
 
@@ -28,25 +28,31 @@ function deriveProgress(subActions, fallback) {
   return clamp(subActions.reduce((sum, s) => sum + (s.completed ? s.weight : 0), 0));
 }
 
-const serialize = (row) => ({ ...row, sub_actions: parseArray(row.sub_actions) });
+const serialize = (row) => ({
+  ...row,
+  sub_actions: parseArray(row.sub_actions),
+  notes: parseArray(row.notes),
+  target_date_locked: Boolean(row.target_date_locked),
+});
+
+const SELECT_WITH_ISSUE = `
+  SELECT a.*,
+         i.gelisme_notlari AS issue_notes,
+         i.hata_karti_turu,
+         i.fotograf_url AS issue_photo,
+         i.bildiren_kisi AS issue_reporter,
+         i.bildirilen_alan AS issue_area,
+         i.ilgili_bolum AS issue_department,
+         i.mevcut_durum AS issue_status,
+         i.hedef_tarih AS issue_target_date
+  FROM actions a
+  LEFT JOIN issues i ON a.issue_id = i.id
+`;
 
 router.get(
   '/',
   asyncHandler(async (req, res) => {
-    const query = isManager(req.user)
-      ? `SELECT a.*, i.gelisme_notlari AS issue_notes, i.hata_karti_turu, i.fotograf_url AS issue_photo, i.bildiren_kisi AS issue_reporter
-         FROM actions a
-         LEFT JOIN issues i ON a.issue_id = i.id
-         ORDER BY a.id DESC`
-      : `SELECT a.*, i.gelisme_notlari AS issue_notes, i.hata_karti_turu, i.fotograf_url AS issue_photo, i.bildiren_kisi AS issue_reporter
-         FROM actions a
-         LEFT JOIN issues i ON a.issue_id = i.id
-         WHERE a.assignee_name = ? OR a.assignee_name LIKE ?
-         ORDER BY a.id DESC`;
-
-    const params = isManager(req.user) ? [] : [req.user.name, `%${req.user.name}%`];
-    const rows = await all(query, params);
-
+    const rows = await all(`${SELECT_WITH_ISSUE} ORDER BY a.id DESC`);
     res.json(rows.map(serialize));
   })
 );
@@ -55,36 +61,49 @@ router.post(
   '/',
   requireRole(...MANAGER_ROLES),
   asyncHandler(async (req, res) => {
-    const { assignee_name, action_content, target_date, progress, sub_actions, issue_id } = req.body || {};
+    const { assignee_name, action_content, target_date, progress, sub_actions, issue_id, notes } = req.body || {};
 
     if (!action_content?.trim()) {
       return res.status(400).json({ error: 'Aksiyon içeriği zorunludur' });
     }
     if (!assignee_name?.trim()) {
-      return res.status(400).json({ error: 'Sorumlu kişi zorunludur' });
+      return res.status(400).json({ error: 'Sorumlu kişi veya bölüm zorunludur' });
     }
 
-    const subs = normalizeSubActions(sub_actions);
+    const hasInitialTarget = Boolean(target_date && String(target_date).trim());
+    let subs = normalizeSubActions(sub_actions);
+    if (subs.length === 0) {
+      subs = [{ title: 'Hedef Tanımlamak', weight: 100, completed: hasInitialTarget }];
+    } else if (hasInitialTarget) {
+      subs = subs.map((s) =>
+        s.title.toLowerCase().includes('hedef tanımlamak') ? { ...s, completed: true } : s
+      );
+    }
+
     const finalProgress = deriveProgress(subs, progress);
+    const locked = hasInitialTarget ? 1 : 0;
 
     const { lastID } = await run(
       `INSERT INTO actions
-        (user_id, assignee_name, action_content, target_date, progress, status, created_at, sub_actions, issue_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (user_id, assignee_name, action_content, target_date, progress, status, created_at, sub_actions, issue_id, notes, target_date_locked)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         req.user.id,
         assignee_name.trim(),
         action_content.trim(),
-        target_date || '',
+        hasInitialTarget ? String(target_date).trim() : '',
         finalProgress,
         finalProgress === 100 ? STATUS_DONE : STATUS_OPEN,
         new Date().toISOString(),
         JSON.stringify(subs),
         issue_id || null,
+        JSON.stringify(parseArray(notes)),
+        locked,
       ]
     );
 
-    res.status(201).json({ id: lastID, message: 'Aksiyon oluşturuldu' });
+    const created = await get(`${SELECT_WITH_ISSUE} WHERE a.id = ?`, [lastID]);
+    res.status(201).json({ id: lastID, message: 'Aksiyon oluşturuldu', action: serialize(created) });
   })
 );
 
@@ -98,66 +117,114 @@ router.put(
     if (!existing) return res.status(404).json({ error: 'Aksiyon bulunamadı' });
 
     const manager = isManager(req.user);
-    // Sorumlu kişi kendi aksiyonunun ilerlemesini ve 1 kerelik hedef tarihini girebilir.
-    const isAssignee = existing.assignee_name && (
-      existing.assignee_name === req.user.name ||
-      existing.assignee_name.includes(req.user.name) ||
-      req.user.name.includes(existing.assignee_name)
-    );
+    const isSuper = req.user.role === ROLES.SUPER_ADMIN;
 
-    if (!manager && !isAssignee) {
-      return res.status(403).json({ error: 'Bu aksiyonu güncelleme yetkiniz yok' });
-    }
-
-    const subs =
+    let subs =
       body.sub_actions !== undefined ? normalizeSubActions(body.sub_actions) : parseArray(existing.sub_actions);
 
     const assignee = manager && body.assignee_name ? body.assignee_name.trim() : existing.assignee_name;
     const content = manager && body.action_content ? body.action_content.trim() : existing.action_content;
 
-    // Hedef tarih: Yönetici değiştirebilir veya hedef tarih henüz yoksa sorumlu kişi 1 kereliğine tanımlayabilir
-    const canSetTargetDate = manager || !existing.target_date || existing.target_date.trim() === '';
-    const targetDate =
-      canSetTargetDate && body.target_date !== undefined ? body.target_date : existing.target_date;
+    // 1 Kerelik Hedef Tarih Kuralı:
+    // Hedef tarih henüz girilmemişse (veya kilitlenmemişse) 1 kereliğine girilebilir.
+    // Girildiği anda 'Hedef Tanımlamak' alt aksiyonu otomatik tamamlanır ve hedef tarih kilitlenir.
+    const alreadyLocked = Boolean(existing.target_date_locked) && Boolean(existing.target_date?.trim());
+    const incomingDate = body.target_date !== undefined ? String(body.target_date).trim() : existing.target_date || '';
+    let targetDate = existing.target_date || '';
+    let targetDateLocked = existing.target_date_locked ? 1 : 0;
+    let justDefinedTargetDate = false;
+
+    if (!alreadyLocked && incomingDate) {
+      targetDate = incomingDate;
+      targetDateLocked = 1;
+      justDefinedTargetDate = incomingDate !== (existing.target_date || '');
+      // İlk aksiyon olan 'Hedef Tanımlamak' maddesini otomatik tamamla
+      subs = subs.map((s) =>
+        s.title.toLowerCase().includes('hedef tanımlamak') ? { ...s, completed: true } : s
+      );
+    } else if (isSuper && incomingDate) {
+      targetDate = incomingDate;
+      targetDateLocked = 1;
+    }
 
     const finalProgress = deriveProgress(subs, body.progress ?? existing.progress);
     const status = finalProgress === 100 ? STATUS_DONE : STATUS_OPEN;
 
-    await run(
-      `UPDATE actions SET
-        assignee_name = ?, action_content = ?, target_date = ?, progress = ?, status = ?, sub_actions = ?
-       WHERE id = ?`,
-      [assignee, content, targetDate, finalProgress, status, JSON.stringify(subs), actionId]
-    );
+    // Gelişme Notları Senkronizasyonu (Hem aksiyon hem bağlı hata kartı)
+    const actionNotes = parseArray(existing.notes);
+    const newNoteText = body.new_note?.trim();
 
-    // Eğer bağlı bir hata kartı varsa ve yeni bir gelişme notu gönderildiyse hata kartına işle
-    if (existing.issue_id && body.new_note?.trim()) {
-      try {
-        const linkedIssue = await get('SELECT gelisme_notlari FROM issues WHERE id = ?', [existing.issue_id]);
-        if (linkedIssue) {
-          const notes = parseArray(linkedIssue.gelisme_notlari);
-          notes.push({
-            text: `[Aksiyon Notu] ${body.new_note.trim()}`,
-            sender: req.user.name || 'Aksiyon Sorumlusu',
-            timestamp: new Date().toISOString(),
-          });
-          await run('UPDATE issues SET gelisme_notlari = ? WHERE id = ?', [
-            JSON.stringify(notes),
-            existing.issue_id,
-          ]);
+    if (justDefinedTargetDate) {
+      const autoNote = {
+        text: `Hedef tarih 1 kereliğine "${targetDate.split('T')[0]}" olarak tanımlandı.`,
+        sender: req.user.name || 'Bölüm Yöneticisi',
+        timestamp: new Date().toISOString(),
+      };
+      actionNotes.push(autoNote);
+
+      if (existing.issue_id) {
+        try {
+          const linkedIssue = await get('SELECT gelisme_notlari FROM issues WHERE id = ?', [existing.issue_id]);
+          if (linkedIssue) {
+            const iNotes = parseArray(linkedIssue.gelisme_notlari);
+            iNotes.push(autoNote);
+            await run('UPDATE issues SET gelisme_notlari = ? WHERE id = ?', [
+              JSON.stringify(iNotes),
+              existing.issue_id,
+            ]);
+          }
+        } catch (err) {
+          console.warn('[actions] Hedef tarih notu senkronizasyon uyarısı:', err.message);
         }
-      } catch (noteErr) {
-        console.warn('[actions] Not senkronizasyon uyarısı:', noteErr.message);
       }
     }
 
-    const updated = await get(
-      `SELECT a.*, i.gelisme_notlari AS issue_notes, i.hata_karti_turu, i.fotograf_url AS issue_photo, i.bildiren_kisi AS issue_reporter
-       FROM actions a
-       LEFT JOIN issues i ON a.issue_id = i.id
-       WHERE a.id = ?`,
-      [actionId]
+    if (newNoteText) {
+      const noteEntry = {
+        text: newNoteText,
+        sender: req.user.name || 'Aksiyon Sorumlusu',
+        timestamp: new Date().toISOString(),
+      };
+      actionNotes.push(noteEntry);
+
+      if (existing.issue_id) {
+        try {
+          const linkedIssue = await get('SELECT gelisme_notlari FROM issues WHERE id = ?', [existing.issue_id]);
+          if (linkedIssue) {
+            const iNotes = parseArray(linkedIssue.gelisme_notlari);
+            iNotes.push({
+              ...noteEntry,
+              text: `[Aksiyon] ${newNoteText}`,
+            });
+            await run('UPDATE issues SET gelisme_notlari = ? WHERE id = ?', [
+              JSON.stringify(iNotes),
+              existing.issue_id,
+            ]);
+          }
+        } catch (noteErr) {
+          console.warn('[actions] Not senkronizasyon uyarısı:', noteErr.message);
+        }
+      }
+    }
+
+    await run(
+      `UPDATE actions SET
+        assignee_name = ?, action_content = ?, target_date = ?, progress = ?, status = ?, sub_actions = ?, notes = ?, target_date_locked = ?
+       WHERE id = ?`,
+      [
+        assignee,
+        content,
+        targetDate,
+        finalProgress,
+        status,
+        JSON.stringify(subs),
+        JSON.stringify(actionNotes),
+        targetDateLocked,
+        actionId,
+      ]
     );
+
+    const updated = await get(`${SELECT_WITH_ISSUE} WHERE a.id = ?`, [actionId]);
     res.json({ message: 'Aksiyon güncellendi', action: serialize(updated) });
   })
 );
