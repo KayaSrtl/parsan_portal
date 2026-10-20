@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Radar,
   RadarChart,
@@ -30,6 +30,7 @@ import {
   Calendar,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { apiFetch } from '../lib/api';
 import PortalBackButton from './ui/PortalBackButton';
 
 const QUESTIONS = {
@@ -88,6 +89,13 @@ const MONTH_NAMES = [
   'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
 ];
 
+const pad2 = (n) => String(n).padStart(2, '0');
+const periodKey = (date = new Date()) => `${date.getFullYear()}-${pad2(date.getMonth() + 1)}`;
+const periodLabelOf = (period) => {
+  const [year, month] = String(period).split('-');
+  return `${MONTH_NAMES[parseInt(month, 10) - 1] || month} ${year}`;
+};
+
 export default function AuditModule({ onBack }) {
   const { user } = useAuth();
   const [selectedTezgah, setSelectedTezgah] = useState('');
@@ -99,29 +107,23 @@ export default function AuditModule({ onBack }) {
     seiri: true, seiton: true, seiso: true, seiketsu: true, shitsuke: true,
   });
 
-  // Dashboard Filtreleri
-  const [selectedPeriod, setSelectedPeriod] = useState('2026-10'); // YYYY-MM
-  const [selectedTrendArea, setSelectedTrendArea] = useState('MP2000');
-
-  const printAreaRef = useRef(null);
+  // Dashboard Filtreleri (varsayılan: içinde bulunulan ay)
+  const [selectedPeriod, setSelectedPeriod] = useState(() => periodKey());
+  const [selectedTrendArea, setSelectedTrendArea] = useState(TEZGAHLAR[0]);
+  const [selectedTrendYear, setSelectedTrendYear] = useState(() => new Date().getFullYear());
 
   const fetchAudits = async () => {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/audits`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setAudits(Array.isArray(data) ? data : []);
-      }
+      const data = await apiFetch('/audits');
+      setAudits(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Denetimler getirilemedi', error);
       try {
         const local = localStorage.getItem('parsan_audits');
         if (local) setAudits(JSON.parse(local));
-      } catch {}
+      } catch {
+        setAudits([]);
+      }
     }
   };
 
@@ -150,19 +152,10 @@ export default function AuditModule({ onBack }) {
   const handleDelete = async (id) => {
     if (!window.confirm('Bu denetimi silmek istediğinize emin misiniz?')) return;
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/audits/${id}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-      if (res.ok) {
-        setAudits(audits.filter((a) => a.id !== id));
-      } else {
-        alert('Silme işlemi başarısız veya yetkiniz yok.');
-      }
-    } catch {
-      alert('Bir hata oluştu.');
+      await apiFetch(`/audits/${id}`, { method: 'DELETE' });
+      setAudits((prev) => prev.filter((a) => a.id !== id));
+    } catch (err) {
+      alert(err?.message || 'Silme işlemi başarısız veya yetkiniz yok.');
     }
   };
 
@@ -209,36 +202,18 @@ export default function AuditModule({ onBack }) {
     };
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/audits`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify(newAudit),
-      });
-
-      if (res.ok) {
-        alert('Denetim başarıyla kaydedildi!');
-        setAnswers({});
-        setSelectedTezgah('');
-        fetchAudits();
-        setActiveTab('dashboard');
-      } else {
-        alert('Kaydetme başarısız.');
-      }
-    } catch {
-      const local = [{ id: Date.now(), ...newAudit }, ...audits];
-      setAudits(local);
-      try {
-        localStorage.setItem('parsan_audits', JSON.stringify(local));
-      } catch {}
-      alert('Denetim yerel olarak kaydedildi.');
+      await apiFetch('/audits', { method: 'POST', body: newAudit });
+      alert('Denetim başarıyla kaydedildi!');
       setAnswers({});
       setSelectedTezgah('');
+      await fetchAudits();
+      setSelectedPeriod(periodKey());
       setActiveTab('dashboard');
+    } catch (err) {
+      alert('Kaydetme başarısız: ' + (err?.message || 'Bilinmeyen hata'));
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsSubmitting(false);
   };
 
   const toggleSection = (section) => {
@@ -265,115 +240,88 @@ export default function AuditModule({ onBack }) {
   // DASHBOARD HESAPLAMALARI
   // =========================================================================
 
-  // Dönem (Ay) Filtresi Seçenekleri (Tüm 2026 ayları + mevcut denetimler)
+  // Dönem (Ay) Filtresi Seçenekleri: son 24 ay + kayıtlı denetimlerin ayları
   const availablePeriods = useMemo(() => {
-    const set = new Set([
-      '2026-12', '2026-11', '2026-10', '2026-09', '2026-08', '2026-07',
-      '2026-06', '2026-05', '2026-04', '2026-03', '2026-02', '2026-01',
-    ]);
+    const set = new Set();
+    const cursor = new Date();
+    cursor.setDate(1);
+    for (let i = 0; i < 24; i += 1) {
+      set.add(periodKey(cursor));
+      cursor.setMonth(cursor.getMonth() - 1);
+    }
     audits.forEach((a) => {
-      if (a.date) {
-        set.add(a.date.slice(0, 7));
-      }
+      if (a.date) set.add(String(a.date).slice(0, 7));
     });
     return Array.from(set).sort().reverse();
   }, [audits]);
 
-  // Seçili Dönemdeki Denetimler ve Alan Skorları
+  // Seçili Dönemdeki Denetimler ve Alan Skorları (yalnızca gerçek kayıtlar)
   const periodData = useMemo(() => {
-    const inPeriod = audits.filter((a) => (a.date || '').startsWith(selectedPeriod));
+    const inPeriod = audits.filter((a) => String(a.date || '').startsWith(selectedPeriod));
 
+    // Aynı alan için o ayın EN GÜNCEL denetimi esas alınır.
     const areaMap = {};
     inPeriod.forEach((a) => {
-      if (!areaMap[a.tezgah_no] || new Date(a.date) > new Date(areaMap[a.tezgah_no].date)) {
+      const current = areaMap[a.tezgah_no];
+      if (!current || new Date(a.date) > new Date(current.date)) {
         areaMap[a.tezgah_no] = a;
       }
     });
 
-    const list = Object.values(areaMap).map((a) => ({
-      name: a.tezgah_no,
-      puan: a.total_score,
-      seiri: a.seiri_score,
-      seiton: a.seiton_score,
-      seiso: a.seiso_score,
-      seiketsu: a.seiketsu_score,
-      shitsuke: a.shitsuke_score,
-      auditor: a.auditor_name,
-      date: a.date,
-    }));
-
-    // Seçilen aya göre dinamik değişen fabrika verisi (o ay için henüz manuel kayıt yoksa)
-    if (list.length === 0) {
-      const monthNum = parseInt(selectedPeriod.split('-')[1] || '10', 10);
-      const demoTezgahlar = ['MP2000', 'MPM6300', 'Dövme', 'Kalıp', 'Isıl İşlem', 'MP4000', 'LMZ1000', 'Sevkiyat'];
-      return demoTezgahlar
-        .map((t, idx) => {
-          const seed = (monthNum * 3 + idx * 5) % 18;
-          const seiri = Math.min(98, 68 + monthNum + seed);
-          const seiton = Math.min(96, 70 + monthNum + ((seed + 4) % 15));
-          const seiso = Math.min(98, 72 + monthNum + ((seed + 7) % 14));
-          const seiketsu = Math.min(95, 66 + monthNum + ((seed + 2) % 16));
-          const shitsuke = Math.min(97, 71 + monthNum + ((seed + 5) % 15));
-          const puan = Math.round((seiri + seiton + seiso + seiketsu + shitsuke) / 5);
-          return {
-            name: t,
-            puan,
-            seiri,
-            seiton,
-            seiso,
-            seiketsu,
-            shitsuke,
-            auditor: '5S Denetim Ekibi',
-            date: `${selectedPeriod}-15`,
-          };
-        })
-        .sort((a, b) => b.puan - a.puan);
-    }
-
-    return list.sort((a, b) => b.puan - a.puan);
+    return Object.values(areaMap)
+      .map((a) => ({
+        name: a.tezgah_no,
+        puan: Math.round(Number(a.total_score) || 0),
+        seiri: Math.round(Number(a.seiri_score) || 0),
+        seiton: Math.round(Number(a.seiton_score) || 0),
+        seiso: Math.round(Number(a.seiso_score) || 0),
+        seiketsu: Math.round(Number(a.seiketsu_score) || 0),
+        shitsuke: Math.round(Number(a.shitsuke_score) || 0),
+        auditor: a.auditor_name,
+        date: a.date,
+      }))
+      .sort((a, b) => b.puan - a.puan);
   }, [audits, selectedPeriod]);
 
-  // Tek Alanın 1 Yıllık Aylık Trendi (Ocak - Aralık 2026)
+  // Tek Alanın 1 Yıl Boyunca Aylık İstatistikleri (yalnızca gerçek kayıtlar)
   const yearlyTrendData = useMemo(() => {
-    const months = [
-      '2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06',
-      '2026-07', '2026-08', '2026-09', '2026-10', '2026-11', '2026-12',
-    ];
+    const areaAudits = audits.filter(
+      (a) =>
+        a.tezgah_no === selectedTrendArea &&
+        String(a.date || '').startsWith(String(selectedTrendYear))
+    );
 
-    const areaAudits = audits.filter((a) => a.tezgah_no === selectedTrendArea);
-    const areaOffset = TEZGAHLAR.indexOf(selectedTrendArea) % 7;
+    return MONTH_NAMES.map((monthName, idx) => {
+      const monthKey = `${selectedTrendYear}-${pad2(idx + 1)}`;
+      const monthAudits = areaAudits
+        .filter((a) => String(a.date || '').startsWith(monthKey))
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+      const latest = monthAudits[monthAudits.length - 1];
 
-    return months.map((m, idx) => {
-      const found = areaAudits.find((a) => (a.date || '').startsWith(m));
-      const monthName = MONTH_NAMES[idx];
-
-      if (found) {
-        return {
-          ay: monthName,
-          skor: found.total_score,
-          hedef: 85,
-        };
-      }
-
-      const baseScores = [68, 71, 74, 76, 75, 79, 81, 83, 85, 87, 88, 90];
       return {
         ay: monthName,
-        skor: Math.min(98, baseScores[idx] + areaOffset),
+        skor: latest ? Math.round(Number(latest.total_score) || 0) : null,
         hedef: 85,
       };
     });
-  }, [audits, selectedTrendArea]);
+  }, [audits, selectedTrendArea, selectedTrendYear]);
+
+  // Trend grafiği için seçilebilir yıllar
+  const availableYears = useMemo(() => {
+    const set = new Set([new Date().getFullYear()]);
+    audits.forEach((a) => {
+      const year = Number(String(a.date || '').slice(0, 4));
+      if (year) set.add(year);
+    });
+    return Array.from(set).sort((a, b) => b - a);
+  }, [audits]);
 
   // PDF Dışa Aktarma / Yazdırma
   const handlePrintPdf = () => {
     window.print();
   };
 
-  const periodLabel = useMemo(() => {
-    const [year, month] = selectedPeriod.split('-');
-    const mIdx = parseInt(month, 10) - 1;
-    return `${MONTH_NAMES[mIdx] || month} ${year}`;
-  }, [selectedPeriod]);
+  const periodLabel = useMemo(() => periodLabelOf(selectedPeriod), [selectedPeriod]);
 
   const renderQuestions = (category, title, colorClass) => (
     <div className="mb-6 border rounded-2xl overflow-hidden bg-white/95 dark:bg-slate-900/90 border-slate-200/80 dark:border-slate-800 shadow-xs">
@@ -520,7 +468,7 @@ export default function AuditModule({ onBack }) {
           SEKME 1: DENETİM DASHBOARD (DÖNEM/AY FİLTRESİ, ALAN PUANLARI, YILLIK TREND, PDF)
           ========================================================================= */}
       {activeTab === 'dashboard' && (
-        <div ref={printAreaRef} className="space-y-6">
+        <div className="space-y-6">
           {/* Dashboard Üst Kontrol Barı (Dönem Seçici ve PDF İndir) */}
           <div className="bg-white/95 dark:bg-slate-900/95 border border-slate-200/80 dark:border-slate-800 p-4 rounded-2xl shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 print:border-b-2 print:border-black print:pb-4 print:shadow-none">
             <div className="flex flex-wrap items-center gap-3">
@@ -583,36 +531,48 @@ export default function AuditModule({ onBack }) {
               </span>
             </div>
 
-            <div className="h-64 sm:h-72 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={periodData} margin={{ top: 10, right: 10, left: -20, bottom: 25 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis
-                    dataKey="name"
-                    stroke="#64748b"
-                    fontSize={11}
-                    angle={-25}
-                    textAnchor="end"
-                  />
-                  <YAxis stroke="#64748b" fontSize={11} domain={[0, 100]} />
-                  <RechartsTooltip
-                    contentStyle={{
-                      backgroundColor: '#ffffff',
-                      borderColor: '#cbd5e1',
-                      color: '#1e293b',
-                      fontSize: '12px',
-                      borderRadius: '12px',
-                    }}
-                  />
-                  <Bar
-                    dataKey="puan"
-                    name="Toplam 5S Skoru (%)"
-                    fill="#14b8a6"
-                    radius={[8, 8, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            {periodData.length === 0 ? (
+              <div className="h-40 flex flex-col items-center justify-center text-center text-slate-500 dark:text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
+                <BarChart3 className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2" />
+                <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                  {periodLabel} döneminde kayıtlı denetim bulunmuyor.
+                </p>
+                <p className="text-xs mt-1">
+                  &quot;Yeni Denetim&quot; sekmesinden denetim eklediğinizde alan puanları burada listelenir.
+                </p>
+              </div>
+            ) : (
+              <div className="h-64 sm:h-72 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={periodData} margin={{ top: 10, right: 10, left: -20, bottom: 25 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis
+                      dataKey="name"
+                      stroke="#64748b"
+                      fontSize={11}
+                      angle={-25}
+                      textAnchor="end"
+                    />
+                    <YAxis stroke="#64748b" fontSize={11} domain={[0, 100]} />
+                    <RechartsTooltip
+                      contentStyle={{
+                        backgroundColor: '#ffffff',
+                        borderColor: '#cbd5e1',
+                        color: '#1e293b',
+                        fontSize: '12px',
+                        borderRadius: '12px',
+                      }}
+                    />
+                    <Bar
+                      dataKey="puan"
+                      name="Toplam 5S Skoru (%)"
+                      fill="#14b8a6"
+                      radius={[8, 8, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </div>
 
           {/* Bölüm 2: Tek Alanın 1 Yıllık Aylık İstatistik & Trend Grafiği */}
@@ -625,7 +585,7 @@ export default function AuditModule({ onBack }) {
                 </h3>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <label className="text-xs font-bold text-slate-600 dark:text-slate-400 print:text-black">
                   İncelenen Alan:
                 </label>
@@ -640,6 +600,21 @@ export default function AuditModule({ onBack }) {
                     </option>
                   ))}
                 </select>
+
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-400 print:text-black ml-1">
+                  Yıl:
+                </label>
+                <select
+                  value={selectedTrendYear}
+                  onChange={(e) => setSelectedTrendYear(Number(e.target.value))}
+                  className="bg-indigo-50 dark:bg-slate-800 border border-indigo-200 dark:border-slate-700 text-xs font-black text-indigo-700 dark:text-indigo-300 rounded-xl px-3 py-1.5 outline-none focus:border-indigo-500 cursor-pointer print:text-black print:border-black"
+                >
+                  {availableYears.map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -648,7 +623,7 @@ export default function AuditModule({ onBack }) {
                 <LineChart data={yearlyTrendData} margin={{ top: 10, right: 15, left: -20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis dataKey="ay" stroke="#64748b" fontSize={11} />
-                  <YAxis stroke="#64748b" fontSize={11} domain={[50, 100]} />
+                  <YAxis stroke="#64748b" fontSize={11} domain={[0, 100]} />
                   <RechartsTooltip
                     contentStyle={{
                       backgroundColor: '#ffffff',
@@ -667,6 +642,7 @@ export default function AuditModule({ onBack }) {
                     strokeWidth={3}
                     dot={{ r: 4, fill: '#6366f1' }}
                     activeDot={{ r: 6 }}
+                    connectNulls={false}
                   />
                   <Line
                     type="monotone"
@@ -680,6 +656,12 @@ export default function AuditModule({ onBack }) {
                 </LineChart>
               </ResponsiveContainer>
             </div>
+            {yearlyTrendData.every((d) => d.skor === null) && (
+              <p className="text-xs text-center text-slate-500 dark:text-slate-400">
+                {selectedTrendYear} yılında <b>{selectedTrendArea}</b> alanı için kayıtlı denetim
+                bulunmuyor.
+              </p>
+            )}
           </div>
 
           {/* Bölüm 3: Dönem Alan Puanları Tablosu & 5S Kırılımı */}
@@ -710,6 +692,16 @@ export default function AuditModule({ onBack }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800 print:divide-gray-300">
+                  {periodData.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={8}
+                        className="px-4 py-8 text-center text-slate-500 dark:text-slate-400 font-semibold"
+                      >
+                        {periodLabel} döneminde kayıtlı denetim bulunmuyor.
+                      </td>
+                    </tr>
+                  )}
                   {periodData.map((row, rIdx) => (
                     <tr
                       key={rIdx}

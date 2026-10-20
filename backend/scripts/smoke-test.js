@@ -152,7 +152,8 @@ const login = async ({ email, password }) =>
   const createForm = new FormData();
   createForm.append('problem_tanimi', '[SMOKE TEST] gecici kayit');
   createForm.append('bildirilen_alan', 'MP4000');
-  createForm.append('mevcut_durum', 'Kırmızı');
+  createForm.append('ilgili_bolum', 'Dövme');
+  createForm.append('mevcut_durum', 'Açık');
 
   const created = await readJson(
     await fetch(`${BASE}/issues`, { method: 'POST', headers: A, body: createForm })
@@ -168,14 +169,14 @@ const login = async ({ email, password }) =>
 
     // Sadece tek alan gönderiyoruz: diğerleri NULL'a düşmemeli.
     const partial = new FormData();
-    partial.append('mevcut_durum', 'Sarı');
+    partial.append('mevcut_durum', 'Beklemede');
     const updated = await readJson(
       await fetch(`${BASE}/issues/${created.id}`, { method: 'PUT', headers: A, body: partial })
     );
 
     check('kısmi güncelleme "Kaydı Açan"ı korur', updated.issue.bildiren_kisi, before.bildiren_kisi);
     check('kısmi güncelleme alanı korur', updated.issue.bildirilen_alan, 'MP4000');
-    check('durum güncellendi', updated.issue.mevcut_durum, 'Sarı');
+    check('durum güncellendi', updated.issue.mevcut_durum, 'Beklemede');
     check('revizyon geçmişi kaydedildi', updated.issue.revizyon_gecmisi.length, 1);
 
     check(

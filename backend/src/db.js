@@ -1,6 +1,14 @@
 const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcryptjs');
 const config = require('./config');
+const { parseArray } = require('./utils/json');
+const {
+  initialSubActions,
+  normalizeSubActions,
+  deriveProgress,
+  deriveStatus,
+  balanceSubActions,
+} = require('./utils/actions');
 
 const db = new sqlite3.Database(config.DB_PATH);
 
@@ -127,6 +135,12 @@ async function createTables() {
     user_id INTEGER
   )`);
 
+  // Tek seferlik veri dönüşümlerinin tekrar çalışmasını engelleyen anahtar/değer tablosu.
+  await run(`CREATE TABLE IF NOT EXISTS app_meta (
+    key TEXT PRIMARY KEY,
+    value TEXT
+  )`);
+
   await run('CREATE INDEX IF NOT EXISTS idx_issues_user ON issues(user_id)');
   await run('CREATE INDEX IF NOT EXISTS idx_actions_assignee ON actions(assignee_name)');
   await run('CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id)');
@@ -158,32 +172,64 @@ async function migrate() {
     await run(`UPDATE issues SET mevcut_durum = 'Kapalı' WHERE mevcut_durum = 'Yeşil'`);
     await run(`UPDATE issues SET mevcut_durum = 'Açık' WHERE mevcut_durum IN ('Kırmızı', 'Sarı')`);
     await run(
-      `UPDATE issues SET hedef_tarih = datetime(bildirim_zamani, '+7 days') WHERE (hedef_tarih IS NULL OR hedef_tarih = '') AND bildirim_zamani IS NOT NULL`
+      `UPDATE issues SET hedef_tarih = strftime('%Y-%m-%dT%H:%M:%fZ', bildirim_zamani, '+7 days') WHERE (hedef_tarih IS NULL OR hedef_tarih = '') AND bildirim_zamani IS NOT NULL`
     );
 
-    // Henüz aksiyona bağlanmamış açık hata kartları için otomatik aksiyon oluştur
-    const unlinkedIssues = await all(
-      `SELECT i.* FROM issues i LEFT JOIN actions a ON a.issue_id = i.id WHERE a.id IS NULL`
+    // 1) "Hedef Tanımlamak" adımını kilometre taşına dönüştür, ağırlıkları dengele
+    //    ve ilerleme/durum değerlerini yeni modele göre yeniden hesapla.
+    //    (Eski sürümde hedef tarih girildiği anda aksiyon %100 "Tamamlandı" oluyordu.)
+    const allActions = await all('SELECT id, sub_actions, progress, status FROM actions');
+    for (const act of allActions) {
+      const subs = normalizeSubActions(act.sub_actions);
+      if (!subs.length) continue;
+
+      const balanced = balanceSubActions(subs);
+      const progress = deriveProgress(balanced);
+      const status = deriveStatus(balanced, progress);
+
+      const subsChanged = JSON.stringify(balanced) !== JSON.stringify(parseArray(act.sub_actions));
+      if (subsChanged || progress !== act.progress || status !== act.status) {
+        await run('UPDATE actions SET sub_actions = ?, progress = ?, status = ? WHERE id = ?', [
+          JSON.stringify(balanced),
+          progress,
+          status,
+          act.id,
+        ]);
+      }
+    }
+
+    // 2) Henüz aksiyona bağlanmamış hata kartları için otomatik aksiyon oluştur.
+    //    Bu işlem yalnızca BİR KEZ çalışır; aksi halde silinen aksiyonlar her
+    //    sunucu açılışında yeniden oluşturulurdu.
+    const backfillDone = await get(
+      "SELECT value FROM app_meta WHERE key = 'issue_actions_backfill_v1'"
     );
-    for (const iss of unlinkedIssues) {
-      const assignee = iss.ilgili_bolum ? `${iss.ilgili_bolum} Yöneticisi` : 'İlgili Bölüm Sorumlusu';
-      const areaPrefix = iss.bildirilen_alan ? `[${iss.bildirilen_alan.toUpperCase()}] ` : '';
-      const cardType = iss.hata_karti_turu || 'Kırmızı Hata Kartı';
-      const actionContent = `${areaPrefix}${cardType} #${iss.id}: ${iss.problem_tanimi || ''}`;
-      const initialSubs = JSON.stringify([{ title: 'Hedef Tanımlamak', weight: 100, completed: false }]);
-      await run(
-        `INSERT INTO actions (user_id, assignee_name, action_content, target_date, progress, status, created_at, sub_actions, issue_id, notes, target_date_locked)
-         VALUES (?, ?, ?, '', 0, 'Açık', ?, ?, ?, ?, 0)`,
-        [
-          iss.user_id || 0,
-          assignee,
-          actionContent,
-          iss.bildirim_zamani || new Date().toISOString(),
-          initialSubs,
-          iss.id,
-          iss.gelisme_notlari || '[]',
-        ]
+    if (!backfillDone) {
+      const unlinkedIssues = await all(
+        `SELECT i.* FROM issues i LEFT JOIN actions a ON a.issue_id = i.id WHERE a.id IS NULL`
       );
+      for (const iss of unlinkedIssues) {
+        const assignee = iss.ilgili_bolum
+          ? `${iss.ilgili_bolum} Yöneticisi`
+          : 'İlgili Bölüm Sorumlusu';
+        const areaPrefix = iss.bildirilen_alan ? `[${iss.bildirilen_alan.toUpperCase()}] ` : '';
+        const cardType = iss.hata_karti_turu || 'Kırmızı Hata Kartı';
+        const actionContent = `${areaPrefix}${cardType} #${iss.id}: ${iss.problem_tanimi || ''}`;
+        await run(
+          `INSERT INTO actions (user_id, assignee_name, action_content, target_date, progress, status, created_at, sub_actions, issue_id, notes, target_date_locked)
+           VALUES (?, ?, ?, '', 0, 'Açık', ?, ?, ?, ?, 0)`,
+          [
+            iss.user_id || 0,
+            assignee,
+            actionContent,
+            iss.bildirim_zamani || new Date().toISOString(),
+            JSON.stringify(initialSubActions(false)),
+            iss.id,
+            iss.gelisme_notlari || '[]',
+          ]
+        );
+      }
+      await run("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('issue_actions_backfill_v1', '1')");
     }
   } catch (err) {
     console.warn('[db] Migration veri dönüşüm uyarısı:', err.message);

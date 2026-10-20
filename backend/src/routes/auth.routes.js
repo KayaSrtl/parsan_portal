@@ -41,12 +41,13 @@ router.post(
   '/guest-login',
   asyncHandler(async (req, res) => {
     const { name } = req.body || {};
-    const trimmed = String(name || '').trim();
+    const trimmed = String(name || '').trim().slice(0, 80);
     if (!trimmed) {
       return res.status(400).json({ error: 'Operatör Adı ve Soyadı girilmesi zorunludur' });
     }
 
-    const guestId = Math.floor(Date.now() / 1000);
+    // Misafir kimliği negatif ve benzersizdir; gerçek kullanıcı id'leriyle çakışmaz.
+    const guestId = -Math.floor(Date.now() / 1000);
     const token = jwt.sign(
       { id: guestId, role: 'misafir', name: trimmed, isGuest: true },
       config.JWT_SECRET,
@@ -61,11 +62,25 @@ router.post(
 );
 
 /** Token geçerliliğini kontrol etmek için hafif uc nokta. */
-router.get('/me', authenticateToken, asyncHandler(async (req, res) => {
-  const user = await get('SELECT id, name, email, role FROM users WHERE id = ?', [req.user.id]);
-  if (!user) return res.status(401).json({ error: 'Kullanıcı bulunamadı', code: 'TOKEN_INVALID' });
-  res.json(user);
-}));
+router.get(
+  '/me',
+  authenticateToken,
+  asyncHandler(async (req, res) => {
+    // Misafir oturumları users tablosunda yer almaz; token içeriği yeterlidir.
+    if (req.user.role === 'misafir' || req.user.isGuest) {
+      return res.json({
+        id: req.user.id,
+        name: req.user.name,
+        email: '',
+        role: 'misafir',
+        isGuest: true,
+      });
+    }
+    const user = await get('SELECT id, name, email, role FROM users WHERE id = ?', [req.user.id]);
+    if (!user) return res.status(401).json({ error: 'Kullanıcı bulunamadı', code: 'TOKEN_INVALID' });
+    res.json(user);
+  })
+);
 
 router.post(
   '/change-password',

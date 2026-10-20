@@ -57,7 +57,7 @@ export default function Login() {
   const message = isOffline ? '' : error || sessionMessage;
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center bg-[#f4f7fb] dark:bg-slate-950 text-slate-800 dark:text-white overflow-hidden p-4 select-none transition-colors">
+    <div className="relative min-h-screen flex items-center justify-center bg-transparent text-slate-800 dark:text-white overflow-hidden p-4 select-none transition-colors">
       {/* Endüstriyel hafif pastel atmosfer (Sıfır GPU yükü) */}
       <ForgeAtmosphere density={6} />
 

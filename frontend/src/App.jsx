@@ -5,7 +5,6 @@ import { useAuth } from './contexts/AuthContext';
 import { useTheme } from './contexts/ThemeContext';
 import { useIssues } from './hooks/useIssues';
 import { flushPendingSaves } from './lib/pendingSave';
-import { STATUS } from './lib/constants';
 
 import Login from './components/Login';
 import PortalView from './components/PortalView';
@@ -115,24 +114,35 @@ function MainApp({ user }) {
   }, []);
 
   const handleQuickStatusChange = useCallback(
-    async (issueId, newStatus) => {
+    async (issueOrId, newStatus) => {
+      // IssueList bazı yerlerde kaydın kendisini, bazı yerlerde id'yi gönderebilir.
+      const issueId = typeof issueOrId === 'object' ? issueOrId?.id : issueOrId;
       const target = issues.find((i) => i.id === issueId);
       if (!target) return;
-      await updateIssue(
-        issueId,
-        {
-          ...target,
-          mevcut_durum: newStatus,
-        },
-        {}
-      );
+
+      // Durum değişikliğini gelişme notlarına da işle (takip geçmişi bozulmasın).
+      let notes = target.gelisme_notlari || '';
+      try {
+        const parsed = notes ? JSON.parse(notes) : [];
+        const list = Array.isArray(parsed) ? parsed : [];
+        list.push({
+          text: `Mevcut durum "${target.mevcut_durum}" ➔ "${newStatus}" olarak güncellendi.`,
+          sender: user?.name || 'Sistem',
+          timestamp: new Date().toISOString(),
+        });
+        notes = JSON.stringify(list);
+      } catch {
+        // Eski düz metin notlar bozulmasın; olduğu gibi bırakılır.
+      }
+
+      await updateIssue(issueId, { mevcut_durum: newStatus, gelisme_notlari: notes }, {});
     },
-    [issues, updateIssue]
+    [issues, updateIssue, user]
   );
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f4f7fb] dark:bg-slate-950">
+      <div className="min-h-screen flex items-center justify-center bg-transparent">
         <div className="text-xl font-bold text-indigo-600 dark:text-indigo-400 animate-pulse flex items-center gap-2">
           <div className="w-6 h-6 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
           Veriler Yükleniyor...
@@ -143,7 +153,7 @@ function MainApp({ user }) {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f4f7fb] dark:bg-slate-950 p-6">
+      <div className="min-h-screen flex items-center justify-center bg-transparent p-6">
         <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-lg border-l-4 border-rose-500 max-w-lg w-full">
           <h2 className="text-2xl font-bold text-rose-600 mb-2">Sunucu Hatası</h2>
           <p className="text-slate-700 dark:text-slate-300">{error}</p>
@@ -189,7 +199,7 @@ function MainApp({ user }) {
   );
 
   return (
-    <div className="relative min-h-screen bg-[#f4f7fb] dark:bg-slate-950 font-sans text-slate-800 dark:text-slate-100 transition-colors duration-200 overflow-x-hidden">
+    <div className="relative min-h-screen bg-transparent font-sans text-slate-800 dark:text-slate-100 transition-colors duration-200 overflow-x-hidden">
       {/* Yumuşak Pastel Fabrika & Fırın Ambiyansı (Sıfır GPU yükü) */}
       <ForgeAtmosphere density={6} />
 

@@ -7,6 +7,14 @@ const router = express.Router();
 
 router.use(authenticateToken);
 
+/** Misafir (saha operatörü) bildirim/mesaj kutusuna erişemez. */
+router.use((req, res, next) => {
+  if (req.user?.role === 'misafir' || req.user?.isGuest) {
+    return res.status(403).json({ error: 'Misafir erişimi bu işlem için kapalıdır' });
+  }
+  next();
+});
+
 // Kullanıcının bildirimlerini getir (veritabanı + dinamik sistem bildirimleri)
 router.get(
   '/',

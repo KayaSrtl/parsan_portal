@@ -1,13 +1,22 @@
 const express = require('express');
 const { get, all, run } = require('../db');
-const { authenticateToken, requireRole, isManager, ROLES } = require('../middleware/auth');
+const { authenticateToken, requireRole, ROLES } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/errors');
 const { singleImage } = require('../middleware/upload');
 const { parseArray } = require('../utils/json');
+const {
+  normalizeSubActions,
+  deriveProgress,
+  deriveStatus,
+  initialSubActions,
+  isMilestone,
+} = require('../utils/actions');
 
 const router = express.Router();
 
 router.use(authenticateToken);
+
+const isGuestUser = (user) => user?.role === ROLES.GUEST || Boolean(user?.isGuest);
 
 // Istemciden guncellenmesine izin verilen alanlar. Beyaz liste kullanmak,
 // gonderilmeyen bir alanin veritabanında NULL'a donusmesini engeller.
@@ -25,10 +34,30 @@ const EDITABLE_FIELDS = [
 
 const serialize = (row) => ({ ...row, revizyon_gecmisi: parseArray(row.revizyon_gecmisi) });
 
+const CARD_TYPES = ['Kırmızı Hata Kartı', 'Sarı Hata Kartı'];
+
+/** Eski kayıtlardan gelen durum değerlerini yeni modele (Açık/Beklemede/Kapalı) çevirir. */
+const normalizeStatus = (raw) => {
+  const value = String(raw ?? '').trim();
+  if (value === 'Kapalı' || value === 'Yeşil') return 'Kapalı';
+  if (value === 'Beklemede') return 'Beklemede';
+  return 'Açık';
+};
+
+const normalizeCardType = (raw) =>
+  CARD_TYPES.includes(String(raw ?? '').trim()) ? String(raw).trim() : CARD_TYPES[0];
+
 router.get(
   '/',
   asyncHandler(async (req, res) => {
-    // Saha ve operasyonel takip paneli için tüm açık/kapalı kayıtlar listelenebilir
+    // Misafir operatörler yalnızca kendi açtıkları kartları görebilir.
+    if (isGuestUser(req.user)) {
+      const own = await all(
+        'SELECT * FROM issues WHERE user_id = ? ORDER BY bildirim_zamani DESC',
+        [req.user.id]
+      );
+      return res.json(own.map(serialize));
+    }
     const rows = await all('SELECT * FROM issues ORDER BY bildirim_zamani DESC');
     res.json(rows.map(serialize));
   })
@@ -43,6 +72,12 @@ router.post(
     if (!data.problem_tanimi?.trim()) {
       return res.status(400).json({ error: 'Problem tanımı zorunludur' });
     }
+    if (!data.bildirilen_alan?.trim()) {
+      return res.status(400).json({ error: 'Alan (tezgah) seçimi zorunludur' });
+    }
+    if (!data.ilgili_bolum?.trim()) {
+      return res.status(400).json({ error: 'Aksiyonun düşeceği ilgili bölüm seçilmelidir' });
+    }
 
     // Termin varsayılan olarak 1 hafta (7 gün)
     const defaultTargetDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -50,8 +85,9 @@ router.post(
       ? new Date(data.hedef_tarih).toISOString()
       : defaultTargetDate;
 
-    const cardType = data.hata_karti_turu || 'Kırmızı Hata Kartı';
-    const status = data.mevcut_durum || 'Açık';
+    const cardType = normalizeCardType(data.hata_karti_turu);
+    const status = normalizeStatus(data.mevcut_durum);
+    const reporterName = (req.user.name || 'Saha Operatörü').trim();
 
     const { lastID } = await run(
       `INSERT INTO issues (
@@ -61,11 +97,11 @@ router.post(
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         req.user.id || 0,
-        data.bildirilen_alan || '',
+        data.bildirilen_alan.trim(),
         data.problem_tanimi.trim(),
-        req.user.name || 'Saha Operatörü',
+        reporterName,
         data.bildiren_bolum || '',
-        data.ilgili_bolum || '',
+        data.ilgili_bolum.trim(),
         new Date().toISOString(),
         finalTargetDate,
         data.planlanan_aksiyon || '',
@@ -78,16 +114,11 @@ router.post(
     );
 
     // Açılan hata kartı ilgili bölüm yöneticisine otomatik aksiyon modülüne düşer.
-    // İlk aksiyonu 'Hedef Tanımlamak' olur ve 1 kereliğine hedef tarih girmesi için target_date boş başlatılır.
+    // İlk adım 'Hedef Tanımlamak' kilometre taşıdır; hedef tarih 1 kereliğine yönetici tarafından girilir.
     try {
-      const assignee = data.ilgili_bolum
-        ? `${data.ilgili_bolum} Yöneticisi`
-        : 'İlgili Bölüm Sorumlusu';
+      const assignee = `${data.ilgili_bolum.trim()} Yöneticisi`;
       const areaPrefix = data.bildirilen_alan ? `[${data.bildirilen_alan.toUpperCase()}] ` : '';
       const actionContent = `${areaPrefix}${cardType} #${lastID}: ${data.problem_tanimi.trim()}`;
-      const initialSubs = JSON.stringify([
-        { title: 'Hedef Tanımlamak', weight: 100, completed: false },
-      ]);
 
       await run(
         `INSERT INTO actions
@@ -98,7 +129,7 @@ router.post(
           assignee,
           actionContent,
           new Date().toISOString(),
-          initialSubs,
+          JSON.stringify(initialSubActions(false)),
           lastID,
           data.gelisme_notlari || '[]',
         ]
@@ -106,11 +137,11 @@ router.post(
 
       // Yöneticilere ve ilgili bölüm şefine anlık bildirim oluştur
       const notifTitle = `Yeni ${cardType} Açıldı (#${lastID})`;
-      const notifMsg = `${req.user?.name || 'Saha Operatörü'} tarafından [${(data.bildirilen_alan || '').toUpperCase()}] alanında hata kartı açıldı. İlgili Bölüm: ${data.ilgili_bolum || 'Belirtilmedi'}. Aksiyon modülüne atandı.`;
+      const notifMsg = `${reporterName} tarafından [${(data.bildirilen_alan || '').toUpperCase()}] alanında hata kartı açıldı. İlgili Bölüm: ${data.ilgili_bolum}. Aksiyon modülüne atandı.`;
       await run(
         `INSERT INTO notifications (user_id, sender_name, title, message, type, link, read, created_at)
          VALUES (NULL, ?, ?, ?, 'warning', '?app=hata_kartlari', 0, ?)`,
-        [req.user?.name || 'Saha Operatörü', notifTitle, notifMsg, new Date().toISOString()]
+        [reporterName, notifTitle, notifMsg, new Date().toISOString()]
       );
     } catch (actErr) {
       console.warn('[issues] Otomatik aksiyon oluşturma uyarısı:', actErr.message);
@@ -124,6 +155,11 @@ router.put(
   '/:id',
   singleImage,
   asyncHandler(async (req, res) => {
+    // Misafir operatörler hata kartı açabilir ancak mevcut kartı düzenleyemez.
+    if (isGuestUser(req.user)) {
+      return res.status(403).json({ error: 'Misafir erişimi bu işlem için kapalıdır' });
+    }
+
     const issueId = Number(req.params.id);
     const body = req.body || {};
 
@@ -149,8 +185,11 @@ router.put(
     const params = [];
     for (const field of EDITABLE_FIELDS) {
       if (body[field] !== undefined) {
+        let value = body[field];
+        if (field === 'mevcut_durum') value = normalizeStatus(value);
+        if (field === 'hata_karti_turu') value = normalizeCardType(value);
         updates.push(`${field} = ?`);
-        params.push(body[field]);
+        params.push(value);
       }
     }
 
@@ -165,6 +204,36 @@ router.put(
 
     await run(`UPDATE issues SET ${updates.join(', ')} WHERE id = ?`, params);
 
+    // Hata kartı kapatıldığında/açıldığında bağlı aksiyonun durumunu senkronize et.
+    const newStatus =
+      body.mevcut_durum !== undefined ? normalizeStatus(body.mevcut_durum) : undefined;
+    if (newStatus !== undefined && newStatus !== oldIssue.mevcut_durum) {
+      try {
+        const linkedActions = await all('SELECT * FROM actions WHERE issue_id = ?', [issueId]);
+        for (const act of linkedActions) {
+          const subs = normalizeSubActions(act.sub_actions);
+          if (newStatus === 'Kapalı') {
+            const closedSubs = subs.map((s) => ({ ...s, completed: true }));
+            await run(
+              "UPDATE actions SET status = 'Tamamlandı', progress = 100, sub_actions = ? WHERE id = ?",
+              [JSON.stringify(closedSubs), act.id]
+            );
+          } else {
+            const reopened = subs.map((s) => (isMilestone(s) ? s : { ...s, completed: false }));
+            const progress = deriveProgress(reopened);
+            await run('UPDATE actions SET status = ?, progress = ?, sub_actions = ? WHERE id = ?', [
+              deriveStatus(reopened, progress),
+              progress,
+              JSON.stringify(reopened),
+              act.id,
+            ]);
+          }
+        }
+      } catch (syncErr) {
+        console.warn('[issues] Aksiyon durum senkronizasyon uyarısı:', syncErr.message);
+      }
+    }
+
     const updated = await get('SELECT * FROM issues WHERE id = ?', [issueId]);
     res.json({ message: 'Başarıyla güncellendi', issue: serialize(updated) });
   })
@@ -174,8 +243,11 @@ router.delete(
   '/:id',
   requireRole(ROLES.SUPER_ADMIN),
   asyncHandler(async (req, res) => {
-    const { changes } = await run('DELETE FROM issues WHERE id = ?', [Number(req.params.id)]);
+    const issueId = Number(req.params.id);
+    const { changes } = await run('DELETE FROM issues WHERE id = ?', [issueId]);
     if (!changes) return res.status(404).json({ error: 'Kayıt bulunamadı' });
+    // Bağlı aksiyonları da temizle (yetim görev kalmasın).
+    await run('DELETE FROM actions WHERE issue_id = ?', [issueId]);
     res.json({ message: 'Kayıt başarıyla silindi' });
   })
 );

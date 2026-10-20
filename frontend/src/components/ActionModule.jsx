@@ -34,7 +34,19 @@ import ConfirmDialog from './ui/ConfirmDialog';
 import Toast from './ui/Toast';
 import PortalBackButton from './ui/PortalBackButton';
 
-const INITIAL_SUB_ACTIONS = [{ title: 'Hedef Tanımlamak', weight: 100, completed: false }];
+/**
+ * "Hedef Tanımlamak" bir kilometre taşıdır: hedef tarih girildiğinde otomatik
+ * tamamlanır ancak aksiyonun genel ilerlemesine SAYILMAZ. Böylece hedef tarih
+ * girildiği anda aksiyon %100 "Tamamlandı" olup takip listesinden düşmez.
+ */
+const MILESTONE_TITLE = 'Hedef Tanımlamak';
+
+const isMilestone = (sub) =>
+  Boolean(sub && (sub.milestone || /hedef\s*tan[ıi]mlamak/i.test(String(sub.title || ''))));
+
+const INITIAL_SUB_ACTIONS = [
+  { title: MILESTONE_TITLE, weight: 0, completed: false, milestone: true },
+];
 
 const EMPTY_FORM = {
   assignee_name: '',
@@ -50,27 +62,46 @@ const toInt = (value) => {
   return Number.isNaN(parsed) ? 0 : parsed;
 };
 
+/** Kilometre taşı hariç, gerçek iş adımlarının ağırlıklarını %100'e dengeler. */
 const balanceWeights = (subs) => {
-  if (subs.length === 0) return [];
-  if (subs.length === 1) return [{ ...subs[0], weight: 100 }];
+  const normalized = subs.map((s) =>
+    isMilestone(s) ? { ...s, weight: 0, milestone: true } : { ...s }
+  );
+  const workIndexes = normalized.map((s, i) => (isMilestone(s) ? -1 : i)).filter((i) => i >= 0);
+  if (workIndexes.length === 0) return normalized;
 
   let used = 0;
-  const balanced = subs.slice(0, -1).map((sub) => {
-    let weight = Math.max(0, toInt(sub.weight));
+  workIndexes.forEach((idx, order) => {
+    if (order === workIndexes.length - 1) {
+      normalized[idx].weight = Math.max(0, 100 - used);
+      return;
+    }
+    let weight = Math.max(0, toInt(normalized[idx].weight));
     if (used + weight > 100) weight = 100 - used;
     used += weight;
-    return { ...sub, weight };
+    normalized[idx].weight = weight;
   });
-
-  balanced.push({ ...subs[subs.length - 1], weight: 100 - used });
-  return balanced;
+  return normalized;
 };
 
-const calcProgress = (subs) =>
-  Math.min(
+/** Sadece gerçek iş adımlarının ağırlıklı tamamlanma yüzdesi. */
+const calcProgress = (subs) => {
+  const work = subs.filter((s) => !isMilestone(s));
+  if (work.length === 0) return 0;
+  return Math.min(
     100,
-    subs.reduce((total, sub) => total + (sub.completed ? toInt(sub.weight) : 0), 0)
+    work.reduce((total, sub) => total + (sub.completed ? toInt(sub.weight) : 0), 0)
   );
+};
+
+/** Aksiyon ancak en az bir gerçek iş adımı %100 tamamlandıysa kapanır. */
+const calcStatus = (subs, progress) =>
+  subs.some((s) => !isMilestone(s)) && progress >= 100
+    ? ACTION_STATUS.DONE
+    : ACTION_STATUS.OPEN;
+
+const completeMilestone = (subs) =>
+  subs.map((s) => (isMilestone(s) ? { ...s, completed: true } : s));
 
 const getProgressColor = (progress) => {
   if (progress >= 100) return 'bg-emerald-500';
@@ -154,15 +185,14 @@ export default function ActionModule({ onBack, currentUser }) {
       savingRef.current = true;
       setIsSaving(true);
       try {
-        // Eğer hedef tarih ilk kez girildiyse 'Hedef Tanımlamak' alt aksiyonunu otomatik tamamla
-        let updatedSubs = Array.isArray(merged.sub_actions) && merged.sub_actions.length > 0
-          ? [...merged.sub_actions]
-          : INITIAL_SUB_ACTIONS;
+        // Eğer hedef tarih ilk kez girildiyse 'Hedef Tanımlamak' kilometre taşını otomatik tamamla
+        let updatedSubs =
+          Array.isArray(merged.sub_actions) && merged.sub_actions.length > 0
+            ? [...merged.sub_actions]
+            : INITIAL_SUB_ACTIONS;
 
         if (merged.target_date && String(merged.target_date).trim()) {
-          updatedSubs = updatedSubs.map((s) =>
-            s.title.toLowerCase().includes('hedef tanımlamak') ? { ...s, completed: true } : s
-          );
+          updatedSubs = completeMilestone(updatedSubs);
         }
 
         const balancedSubs = balanceWeights(updatedSubs);
@@ -171,7 +201,7 @@ export default function ActionModule({ onBack, currentUser }) {
           ...merged,
           sub_actions: balancedSubs,
           progress,
-          status: progress >= 100 ? ACTION_STATUS.DONE : ACTION_STATUS.OPEN,
+          status: calcStatus(balancedSubs, progress),
         };
 
         if (newIssueNote.trim() && !payload.new_note) {
@@ -263,7 +293,7 @@ export default function ActionModule({ onBack, currentUser }) {
         : {
             ...EMPTY_FORM,
             assignee_name: `${DEPARTMENTS[0]} Yöneticisi`,
-            sub_actions: [{ title: 'Hedef Tanımlamak', weight: 100, completed: false }],
+            sub_actions: INITIAL_SUB_ACTIONS.map((s) => ({ ...s })),
           }
     );
     setNewIssueNote('');
@@ -281,17 +311,13 @@ export default function ActionModule({ onBack, currentUser }) {
   const handleFormChange = (field, value) => {
     setFormData((prev) => {
       const next = { ...prev, [field]: value };
-      // Hedef tarih seçildiğinde ilk aksiyon olan 'Hedef Tanımlamak' otomatik işaretlensin
+      // Hedef tarih seçildiğinde 'Hedef Tanımlamak' kilometre taşı otomatik işaretlensin
       if (field === 'target_date' && value) {
-        const subs = balanceWeights(
-          (prev.sub_actions || INITIAL_SUB_ACTIONS).map((s) =>
-            s.title.toLowerCase().includes('hedef tanımlamak') ? { ...s, completed: true } : s
-          )
-        );
+        const subs = balanceWeights(completeMilestone(prev.sub_actions || INITIAL_SUB_ACTIONS));
         const progress = calcProgress(subs);
         next.sub_actions = subs;
         next.progress = progress;
-        next.status = progress >= 100 ? ACTION_STATUS.DONE : ACTION_STATUS.OPEN;
+        next.status = calcStatus(subs, progress);
       }
       return next;
     });
@@ -306,7 +332,7 @@ export default function ActionModule({ onBack, currentUser }) {
         ...prev,
         sub_actions: subs,
         progress,
-        status: progress >= 100 ? ACTION_STATUS.DONE : ACTION_STATUS.OPEN,
+        status: calcStatus(subs, progress),
       };
     });
     setIsDirty(true);
@@ -624,7 +650,7 @@ export default function ActionModule({ onBack, currentUser }) {
                     <input
                       type="date"
                       disabled={!canEditTargetDate}
-                      className={`flex-1 ${inputClass} ${
+                      className={`flex-1 ${inputClass} [color-scheme:light] dark:[color-scheme:dark] ${
                         canEditTargetDate ? 'cursor-pointer' : 'opacity-70 cursor-not-allowed'
                       }`}
                       value={formData.target_date || ''}
@@ -650,10 +676,16 @@ export default function ActionModule({ onBack, currentUser }) {
                           }}
                           className="px-2.5 py-1 text-[11px] font-bold bg-indigo-50 dark:bg-slate-800 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-slate-700 hover:bg-indigo-100 rounded-lg cursor-pointer transition-colors"
                         >
-                          {preset.label} ({toDisplayDate(new Date(Date.now() + preset.days * 86400000).toISOString())})
+                          {preset.label}
                         </button>
                       ))}
                     </div>
+                  )}
+
+                  {formData.target_date && (
+                    <p className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+                      Seçilen termin: {toDisplayDate(formData.target_date)}
+                    </p>
                   )}
                 </div>
               </div>
@@ -667,7 +699,9 @@ export default function ActionModule({ onBack, currentUser }) {
                     Aksiyon Adımları (İlk Adım: Hedef Tanımlamak)
                   </label>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    İlk aksiyon otomatik olarak &quot;Hedef Tanımlamak&quot; gelir. Hedef tarih girildiğinde otomatik tamamlanır.
+                    İlk adım otomatik olarak &quot;Hedef Tanımlamak&quot; gelir ve hedef tarih girildiğinde
+                    tamamlanır. Bu adım bir kilometre taşıdır; genel ilerlemeye sayılmaz. Gerçek iş
+                    adımlarını aşağıdan ekleyin.
                   </p>
                 </div>
                 {canManage && (
@@ -684,7 +718,11 @@ export default function ActionModule({ onBack, currentUser }) {
               {formData.sub_actions?.length > 0 ? (
                 <div className="space-y-2.5">
                   {formData.sub_actions.map((sub, idx) => {
-                    const isLast = idx === formData.sub_actions.length - 1;
+                    const milestone = isMilestone(sub);
+                    const workIndexes = formData.sub_actions
+                      .map((s, i) => (isMilestone(s) ? -1 : i))
+                      .filter((i) => i >= 0);
+                    const isLastWork = !milestone && workIndexes[workIndexes.length - 1] === idx;
                     return (
                       <div
                         key={idx}
@@ -702,25 +740,29 @@ export default function ActionModule({ onBack, currentUser }) {
                         />
                         <input
                           type="text"
-                          disabled={!canManage && idx === 0}
+                          disabled={milestone || !canManage}
                           placeholder="Alt aksiyon tanımı..."
                           className={`flex-1 w-full bg-transparent border-b border-slate-200 dark:border-slate-600 p-1 text-sm font-semibold text-slate-800 dark:text-slate-100 outline-none focus:border-indigo-500 ${
                             sub.completed ? 'line-through text-slate-400' : ''
-                          }`}
+                          } ${milestone ? 'cursor-not-allowed' : ''}`}
                           value={sub.title}
                           onChange={(e) => updateSubAction(idx, 'title', e.target.value)}
                         />
                         <div className="flex items-center gap-3 w-full sm:w-auto">
-                          {canManage ? (
+                          {milestone ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/30 whitespace-nowrap">
+                              <Lock className="w-3 h-3" /> Kilometre Taşı
+                            </span>
+                          ) : canManage ? (
                             <div className="flex-1 sm:w-32 flex items-center gap-2">
                               <input
                                 type="range"
                                 min="0"
                                 max="100"
                                 step="5"
-                                disabled={isLast}
+                                disabled={isLastWork}
                                 className={`w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer dark:bg-slate-700 ${
-                                  isLast ? 'opacity-50 cursor-not-allowed' : ''
+                                  isLastWork ? 'opacity-50 cursor-not-allowed' : ''
                                 }`}
                                 value={sub.weight}
                                 onChange={(e) =>
@@ -734,7 +776,7 @@ export default function ActionModule({ onBack, currentUser }) {
                           ) : (
                             <span className="font-bold text-xs text-slate-500">%{sub.weight}</span>
                           )}
-                          {canManage && formData.sub_actions.length > 1 && (
+                          {canManage && !milestone && (
                             <button
                               type="button"
                               onClick={() => removeSubAction(idx)}
@@ -822,7 +864,14 @@ export default function ActionModule({ onBack, currentUser }) {
             {/* Genel İlerleme Durumu */}
             <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-200 dark:border-slate-700">
               <div className="flex justify-between text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                <span>Genel İlerleme Durumu</span>
+                <span className="flex items-center gap-2">
+                  Genel İlerleme Durumu
+                  {formData.target_date && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30">
+                      <CheckCircle2 className="w-3 h-3" /> Hedef Tanımlandı
+                    </span>
+                  )}
+                </span>
                 <span className="text-indigo-600 dark:text-indigo-400 font-black text-base">
                   %{formData.progress}
                 </span>
@@ -833,6 +882,10 @@ export default function ActionModule({ onBack, currentUser }) {
                   style={{ width: `${formData.progress || 0}%` }}
                 />
               </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
+                İlerleme yalnızca gerçek iş adımlarından hesaplanır; &quot;Hedef Tanımlamak&quot;
+                adımı bu orana dahil edilmez.
+              </p>
             </div>
 
             <div className="flex justify-end gap-3 pt-2">
@@ -928,6 +981,11 @@ function ActionList({ actions, onSelect, getCombinedNotes }) {
                       Hata Kartı #{action.issue_id}
                     </span>
                   )}
+                  {action.target_date && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      Hedef Tanımlandı
+                    </span>
+                  )}
                 </div>
                 <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
                   %{action.progress || 0}
@@ -1008,6 +1066,11 @@ function ActionList({ actions, onSelect, getCombinedNotes }) {
                         <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold">
                           1. Adım: {action.sub_actions?.[0]?.title || 'Hedef Tanımlamak'}
                         </span>
+                        {action.target_date && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300">
+                            Hedef Tanımlandı
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3.5 max-w-xs">

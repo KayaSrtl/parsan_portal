@@ -1,8 +1,21 @@
 const express = require('express');
 const { get, all, run } = require('../db');
-const { authenticateToken, requireRole, isManager, MANAGER_ROLES, ROLES } = require('../middleware/auth');
+const {
+  authenticateToken,
+  requireRole,
+  isManager,
+  MANAGER_ROLES,
+  ROLES,
+} = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/errors');
 const { parseArray } = require('../utils/json');
+const {
+  normalizeSubActions,
+  deriveProgress,
+  deriveStatus,
+  completeMilestone,
+  initialSubActions,
+} = require('../utils/actions');
 
 const router = express.Router();
 
@@ -11,26 +24,17 @@ router.use(authenticateToken);
 const STATUS_OPEN = 'Açık';
 const STATUS_DONE = 'Tamamlandı';
 
-const clamp = (n) => Math.min(100, Math.max(0, Math.round(Number(n) || 0)));
-
-const normalizeSubActions = (value) =>
-  parseArray(value)
-    .filter((s) => s && typeof s === 'object')
-    .map((s) => ({
-      title: String(s.title ?? ''),
-      weight: clamp(s.weight),
-      completed: Boolean(s.completed),
-    }));
-
-/** Ilerleme, alt basliklar varsa onlardan hesaplanır; yoksa gönderilen değer kullanılır. */
-function deriveProgress(subActions, fallback) {
-  if (!subActions.length) return clamp(fallback);
-  return clamp(subActions.reduce((sum, s) => sum + (s.completed ? s.weight : 0), 0));
-}
+/** Misafir (saha operatörü) aksiyon modülüne erişemez. */
+const denyGuest = (req, res, next) => {
+  if (req.user?.role === ROLES.GUEST || req.user?.isGuest) {
+    return res.status(403).json({ error: 'Misafir erişimi bu işlem için kapalıdır' });
+  }
+  next();
+};
 
 const serialize = (row) => ({
   ...row,
-  sub_actions: parseArray(row.sub_actions),
+  sub_actions: normalizeSubActions(row.sub_actions),
   notes: parseArray(row.notes),
   target_date_locked: Boolean(row.target_date_locked),
 });
@@ -51,6 +55,7 @@ const SELECT_WITH_ISSUE = `
 
 router.get(
   '/',
+  denyGuest,
   asyncHandler(async (req, res) => {
     const rows = await all(`${SELECT_WITH_ISSUE} ORDER BY a.id DESC`);
     res.json(rows.map(serialize));
@@ -59,9 +64,11 @@ router.get(
 
 router.post(
   '/',
+  denyGuest,
   requireRole(...MANAGER_ROLES),
   asyncHandler(async (req, res) => {
-    const { assignee_name, action_content, target_date, progress, sub_actions, issue_id, notes } = req.body || {};
+    const { assignee_name, action_content, target_date, sub_actions, issue_id, notes } =
+      req.body || {};
 
     if (!action_content?.trim()) {
       return res.status(400).json({ error: 'Aksiyon içeriği zorunludur' });
@@ -73,15 +80,13 @@ router.post(
     const hasInitialTarget = Boolean(target_date && String(target_date).trim());
     let subs = normalizeSubActions(sub_actions);
     if (subs.length === 0) {
-      subs = [{ title: 'Hedef Tanımlamak', weight: 100, completed: hasInitialTarget }];
+      subs = initialSubActions(hasInitialTarget);
     } else if (hasInitialTarget) {
-      subs = subs.map((s) =>
-        s.title.toLowerCase().includes('hedef tanımlamak') ? { ...s, completed: true } : s
-      );
+      subs = completeMilestone(subs);
     }
 
-    const finalProgress = deriveProgress(subs, progress);
-    const locked = hasInitialTarget ? 1 : 0;
+    const finalProgress = deriveProgress(subs);
+    const status = deriveStatus(subs, finalProgress);
 
     const { lastID } = await run(
       `INSERT INTO actions
@@ -93,12 +98,12 @@ router.post(
         action_content.trim(),
         hasInitialTarget ? String(target_date).trim() : '',
         finalProgress,
-        finalProgress === 100 ? STATUS_DONE : STATUS_OPEN,
+        status,
         new Date().toISOString(),
         JSON.stringify(subs),
         issue_id || null,
         JSON.stringify(parseArray(notes)),
-        locked,
+        hasInitialTarget ? 1 : 0,
       ]
     );
 
@@ -109,6 +114,7 @@ router.post(
 
 router.put(
   '/:id',
+  denyGuest,
   asyncHandler(async (req, res) => {
     const actionId = Number(req.params.id);
     const body = req.body || {};
@@ -120,16 +126,20 @@ router.put(
     const isSuper = req.user.role === ROLES.SUPER_ADMIN;
 
     let subs =
-      body.sub_actions !== undefined ? normalizeSubActions(body.sub_actions) : parseArray(existing.sub_actions);
+      body.sub_actions !== undefined
+        ? normalizeSubActions(body.sub_actions)
+        : normalizeSubActions(existing.sub_actions);
 
     const assignee = manager && body.assignee_name ? body.assignee_name.trim() : existing.assignee_name;
     const content = manager && body.action_content ? body.action_content.trim() : existing.action_content;
 
     // 1 Kerelik Hedef Tarih Kuralı:
     // Hedef tarih henüz girilmemişse (veya kilitlenmemişse) 1 kereliğine girilebilir.
-    // Girildiği anda 'Hedef Tanımlamak' alt aksiyonu otomatik tamamlanır ve hedef tarih kilitlenir.
+    // Girildiği anda 'Hedef Tanımlamak' kilometre taşı tamamlanır ve tarih kilitlenir.
+    // NOT: Aksiyonun kendisi bu yüzden "Tamamlandı" olmaz; gerçek iş adımları beklenir.
     const alreadyLocked = Boolean(existing.target_date_locked) && Boolean(existing.target_date?.trim());
-    const incomingDate = body.target_date !== undefined ? String(body.target_date).trim() : existing.target_date || '';
+    const incomingDate =
+      body.target_date !== undefined ? String(body.target_date).trim() : existing.target_date || '';
     let targetDate = existing.target_date || '';
     let targetDateLocked = existing.target_date_locked ? 1 : 0;
     let justDefinedTargetDate = false;
@@ -138,17 +148,15 @@ router.put(
       targetDate = incomingDate;
       targetDateLocked = 1;
       justDefinedTargetDate = incomingDate !== (existing.target_date || '');
-      // İlk aksiyon olan 'Hedef Tanımlamak' maddesini otomatik tamamla
-      subs = subs.map((s) =>
-        s.title.toLowerCase().includes('hedef tanımlamak') ? { ...s, completed: true } : s
-      );
+      subs = completeMilestone(subs);
     } else if (isSuper && incomingDate) {
       targetDate = incomingDate;
       targetDateLocked = 1;
+      subs = completeMilestone(subs);
     }
 
-    const finalProgress = deriveProgress(subs, body.progress ?? existing.progress);
-    const status = finalProgress === 100 ? STATUS_DONE : STATUS_OPEN;
+    const finalProgress = deriveProgress(subs);
+    const status = deriveStatus(subs, finalProgress);
 
     // Gelişme Notları Senkronizasyonu (Hem aksiyon hem bağlı hata kartı)
     const actionNotes = parseArray(existing.notes);
@@ -164,7 +172,9 @@ router.put(
 
       if (existing.issue_id) {
         try {
-          const linkedIssue = await get('SELECT gelisme_notlari FROM issues WHERE id = ?', [existing.issue_id]);
+          const linkedIssue = await get('SELECT gelisme_notlari FROM issues WHERE id = ?', [
+            existing.issue_id,
+          ]);
           if (linkedIssue) {
             const iNotes = parseArray(linkedIssue.gelisme_notlari);
             iNotes.push(autoNote);
@@ -189,13 +199,12 @@ router.put(
 
       if (existing.issue_id) {
         try {
-          const linkedIssue = await get('SELECT gelisme_notlari FROM issues WHERE id = ?', [existing.issue_id]);
+          const linkedIssue = await get('SELECT gelisme_notlari FROM issues WHERE id = ?', [
+            existing.issue_id,
+          ]);
           if (linkedIssue) {
             const iNotes = parseArray(linkedIssue.gelisme_notlari);
-            iNotes.push({
-              ...noteEntry,
-              text: `[Aksiyon] ${newNoteText}`,
-            });
+            iNotes.push({ ...noteEntry, text: `[Aksiyon] ${newNoteText}` });
             await run('UPDATE issues SET gelisme_notlari = ? WHERE id = ?', [
               JSON.stringify(iNotes),
               existing.issue_id,
@@ -231,6 +240,7 @@ router.put(
 
 router.delete(
   '/:id',
+  denyGuest,
   requireRole(...MANAGER_ROLES),
   asyncHandler(async (req, res) => {
     const { changes } = await run('DELETE FROM actions WHERE id = ?', [Number(req.params.id)]);

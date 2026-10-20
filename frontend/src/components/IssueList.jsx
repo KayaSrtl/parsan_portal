@@ -408,7 +408,7 @@ export default function IssueList({ issues, onSelectIssue, onOpenNew, onQuickSta
                         {onQuickStatusChange ? (
                           <select
                             value={status}
-                            onChange={(e) => onQuickStatusChange(issue, e.target.value)}
+                            onChange={(e) => onQuickStatusChange(issue.id, e.target.value)}
                             className={`text-[11px] font-bold px-2.5 py-1 rounded-full cursor-pointer outline-none ${getStatusColor(status)}`}
                           >
                             {STATUS_OPTIONS.map((opt) => (

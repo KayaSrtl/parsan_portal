@@ -144,7 +144,13 @@ export default function MaintenanceModule({ onBack }) {
       resetForm();
       fetchHistory();
       setActiveTab('history');
-    } catch {
+    } catch (err) {
+      // Sunucu doğrulama hatası (400/403 vb.) yerel kayıt olarak gizlenmemeli.
+      if (err?.status && err.status !== 0) {
+        setErrorMsg(err.message || 'Kayıt sunucuya iletilemedi.');
+        return;
+      }
+      // Yalnızca ağ bağlantısı yoksa yerel taslak olarak sakla.
       const localRecord = {
         id: Date.now(),
         tezgah_no: tezgah,
@@ -163,8 +169,12 @@ export default function MaintenanceModule({ onBack }) {
       setHistoryList(updated);
       try {
         localStorage.setItem('parsan_maintenance_history', JSON.stringify(updated));
-      } catch {}
-      setFeedback('Otonom bakım kontrolü başarıyla kaydedildi!');
+      } catch {
+        // Depolama dolu olabilir; sessizce geç.
+      }
+      setFeedback(
+        'Sunucuya ulaşılamadı; kayıt bu cihazda yerel taslak olarak saklandı.'
+      );
       resetForm();
       setActiveTab('history');
     } finally {

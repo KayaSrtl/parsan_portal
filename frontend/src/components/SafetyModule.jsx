@@ -113,7 +113,12 @@ export default function SafetyModule({ onBack }) {
       resetForm();
       fetchReports();
       setShowNewForm(false);
-    } catch {
+    } catch (err) {
+      // Sunucu doğrulama hatası yerel kayıt olarak gizlenmemeli.
+      if (err?.status && err.status !== 0) {
+        alert(err.message || 'Kayıt sunucuya iletilemedi.');
+        return;
+      }
       const localReport = {
         id: Date.now(),
         type: activeCategory,
@@ -131,8 +136,12 @@ export default function SafetyModule({ onBack }) {
       setReports(updated);
       try {
         localStorage.setItem('parsan_safety_reports', JSON.stringify(updated));
-      } catch {}
-      setMessage(`${activeCategory} kaydı başarıyla oluşturuldu!`);
+      } catch {
+        // Depolama dolu olabilir; sessizce geç.
+      }
+      setMessage(
+        'Sunucuya ulaşılamadı; kayıt bu cihazda yerel taslak olarak saklandı.'
+      );
       resetForm();
       setShowNewForm(false);
     } finally {
@@ -147,12 +156,18 @@ export default function SafetyModule({ onBack }) {
         body: { durum: newStatus },
       });
       fetchReports();
-    } catch {
+    } catch (err) {
+      if (err?.status && err.status !== 0) {
+        alert(err.message || 'Durum güncellenemedi.');
+        return;
+      }
       const updated = reports.map((r) => (r.id === id ? { ...r, durum: newStatus } : r));
       setReports(updated);
       try {
         localStorage.setItem('parsan_safety_reports', JSON.stringify(updated));
-      } catch {}
+      } catch {
+        // Depolama dolu olabilir; sessizce geç.
+      }
     }
   };
 

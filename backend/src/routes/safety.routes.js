@@ -8,6 +8,14 @@ const router = express.Router();
 
 router.use(authenticateToken);
 
+/** Misafir (saha operatörü) İSG modülüne erişemez. */
+router.use((req, res, next) => {
+  if (req.user?.role === ROLES.GUEST || req.user?.isGuest) {
+    return res.status(403).json({ error: 'Misafir erişimi bu işlem için kapalıdır' });
+  }
+  next();
+});
+
 router.get(
   '/',
   asyncHandler(async (req, res) => {

@@ -24,7 +24,6 @@ import {
   AREAS,
   DEPARTMENTS,
   DEFECT_CARD_TYPES,
-  DEFECT_CARD_TYPE_OPTIONS,
   OPTION_CLASS,
   STATUS,
   STATUS_OPTIONS,
@@ -41,7 +40,8 @@ const getOneWeekLaterDate = () => {
   return d.toISOString().split('T')[0];
 };
 
-const EMPTY_FORM = {
+/** Boş form her açılışta yeniden üretilir; böylece termin tarihi bayatlamaz. */
+const createEmptyForm = () => ({
   problem_tanimi: '',
   planlanan_aksiyon: '',
   gelisme_notlari: '',
@@ -51,7 +51,7 @@ const EMPTY_FORM = {
   bildirilen_alan: '',
   bildiren_bolum: '',
   ilgili_bolum: '',
-};
+});
 
 const normalizeStatus = (raw) => {
   if (raw === 'Yeşil' || raw === STATUS.CLOSED) return STATUS.CLOSED;
@@ -88,7 +88,7 @@ export default function DashboardView({
   const issue = isNew ? null : issues[currentIndex];
   const issueId = issue?.id ?? null;
 
-  const [formData, setFormData] = useState(EMPTY_FORM);
+  const [formData, setFormData] = useState(createEmptyForm);
   const [imageFile, setImageFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -102,7 +102,7 @@ export default function DashboardView({
 
   useEffect(() => {
     const source = !isNew && issueId ? issues.find((i) => i.id === issueId) : null;
-    setFormData(source ? issueToForm(source) : { ...EMPTY_FORM, hedef_tarih: getOneWeekLaterDate() });
+    setFormData(source ? issueToForm(source) : createEmptyForm());
     setPreviewUrl(source ? fileUrl(source.fotograf_url) : null);
     setImageFile(null);
     setNewNote('');
@@ -176,7 +176,7 @@ export default function DashboardView({
             tanim: payload.problem_tanimi,
           });
           // Formu yeni kayıt için temizle
-          setFormData({ ...EMPTY_FORM, hedef_tarih: getOneWeekLaterDate() });
+          setFormData(createEmptyForm());
           setImageFile(null);
           setPreviewUrl(null);
           setNewNote('');
@@ -281,13 +281,9 @@ export default function DashboardView({
   };
 
   const handleCreate = async () => {
-    if (await handleSave(false)) {
-      setFormData({ ...EMPTY_FORM, hedef_tarih: getOneWeekLaterDate() });
-      setImageFile(null);
-      setPreviewUrl(null);
-      setNewNote('');
-      setTimeout(onBack, 1100);
-    }
+    // Kayıt başarılıysa form zaten sıfırlanır ve başarı paneli gösterilir.
+    // Kullanıcı isterse "Portala Dön" veya "+ Yeni Kart Açmaya Devam Et" butonunu kullanır.
+    await handleSave(false);
   };
 
   const handleDelete = async () => {

@@ -68,23 +68,13 @@ export const AuthProvider = ({ children }) => {
       setUser(data.user);
       setSessionMessage('');
       return { success: true };
-    } catch {
-      // Çevrimdışı veya statik sunucuda çalışabilmesi için yerel misafir token'ı üret
-      const guestId = `guest_${Date.now()}`;
-      const guestUser = {
-        id: guestId,
-        name: trimmed,
-        email: '',
-        role: 'misafir',
-        isGuest: true,
+    } catch (err) {
+      // Sahte/çevrimdışı token ÜRETİLMEZ: sunucuya ulaşılamıyorsa kayıtlar
+      // veritabanına yazılamaz, bu yüzden kullanıcıya gerçek hata gösterilir.
+      return {
+        success: false,
+        error: err?.message || 'Sunucuya bağlanılamadı. Lütfen tekrar deneyin.',
       };
-      const guestToken = `guest_token_${Date.now()}`;
-      localStorage.setItem(TOKEN_KEY, guestToken);
-      localStorage.setItem(USER_KEY, JSON.stringify(guestUser));
-      setToken(guestToken);
-      setUser(guestUser);
-      setSessionMessage('');
-      return { success: true };
     }
   }, []);
 

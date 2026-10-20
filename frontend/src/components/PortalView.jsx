@@ -226,7 +226,6 @@ function PortalView({ onSelectApp, issues = [] }) {
                 subtitle,
                 description,
                 Icon,
-                badge,
                 cardBg,
                 badgeStyle,
                 iconBg,
