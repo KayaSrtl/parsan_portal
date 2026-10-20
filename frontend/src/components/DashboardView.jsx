@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
-  ArrowLeft,
   ChevronLeft,
   ChevronRight,
   Save,
@@ -33,6 +32,7 @@ import { fileUrl } from '../lib/api';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { useToast } from '../hooks/useToast';
 import ConfirmDialog from './ui/ConfirmDialog';
+import PortalBackButton from './ui/PortalBackButton';
 import Toast from './ui/Toast';
 
 const getOneWeekLaterDate = () => {
@@ -308,25 +308,26 @@ export default function DashboardView({
     <div className="bg-transparent min-h-screen p-2 md:p-4 max-w-6xl mx-auto">
       {/* Üst Başlık */}
       <div className="bg-white/95 dark:bg-slate-900/90 border border-slate-200/90 dark:border-slate-800 rounded-3xl p-4 sm:p-6 mb-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleGoBack}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs sm:text-sm transition-colors cursor-pointer"
-          >
-            <ArrowLeft className="w-4 h-4" /> Geri Dön
-          </button>
-          <div>
-            <h2 className="text-lg sm:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 min-w-0 w-full md:w-auto">
+          <PortalBackButton
+            onBack={handleGoBack}
+            label={isNew ? 'Portala Dön' : 'Hata Kartları Listesine Dön'}
+            className="self-start flex-shrink-0"
+          />
+          <div className="min-w-0">
+            <h2 className="text-base sm:text-xl md:text-2xl font-black text-slate-900 dark:text-white flex flex-wrap items-center gap-2 break-words leading-tight">
               {isNew ? (
                 <>
-                  <Tag className="w-6 h-6 text-rose-500" />
+                  <Tag className="w-5 h-5 sm:w-6 sm:h-6 text-rose-500 flex-shrink-0" />
                   <span>Hata Kartı Açma Modülü (Veri Girişi)</span>
                 </>
               ) : (
-                <span>Hata Kartı Detayı — Alan: {issue.bildirilen_alan?.toUpperCase() || '-'}</span>
+                <span className="break-words">
+                  Hata Kartı Detayı — Alan: {issue.bildirilen_alan?.toUpperCase() || '-'}
+                </span>
               )}
             </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
               {isNew
                 ? 'Açılan hata kartı 1 hafta terminle ilgili bölüm yöneticisine otomatik aksiyon olarak düşer.'
                 : `Bildiren: ${issue.bildiren_kisi || '-'} • Açılış: ${formatDateTime(issue.bildirim_zamani)}`}
@@ -334,26 +335,26 @@ export default function DashboardView({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 self-end md:self-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto md:justify-end">
           {isNew && (
             <button
               onClick={handleCreate}
               disabled={isSaving}
-              className="bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white font-bold py-2.5 px-5 rounded-xl text-xs sm:text-sm transition shadow-sm disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+              className="flex-1 sm:flex-none justify-center bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white font-bold py-2.5 px-4 sm:px-5 rounded-xl text-xs sm:text-sm transition shadow-sm disabled:opacity-50 cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
             >
-              <Save className="w-4 h-4" />
+              <Save className="w-4 h-4 flex-shrink-0" />
               {isSaving ? 'Kaydediliyor...' : 'Hata Kartını Oluştur'}
             </button>
           )}
           {!isNew && isSuperAdmin(currentUser) && (
             <button
               onClick={handleDelete}
-              className="bg-rose-100 hover:bg-rose-200 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300 font-bold py-2 px-3.5 rounded-xl text-xs sm:text-sm transition cursor-pointer"
+              className="bg-rose-100 hover:bg-rose-200 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300 font-bold py-2 px-3.5 rounded-xl text-xs sm:text-sm transition cursor-pointer whitespace-nowrap"
             >
               Kaydı Sil
             </button>
           )}
-          <div className="text-xs font-bold text-slate-600 dark:text-slate-300 font-mono bg-slate-100 dark:bg-slate-800 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700">
+          <div className="text-[11px] sm:text-xs font-bold text-slate-600 dark:text-slate-300 font-mono bg-slate-100 dark:bg-slate-800 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 whitespace-nowrap">
             {isNew ? 'YENİ KART' : `KART #${issue.id}`}
           </div>
         </div>
@@ -405,36 +406,40 @@ export default function DashboardView({
             <label className="block text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-3">
               1. Hata Kartı Türü Seçiniz *
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
               <button
                 type="button"
                 onClick={() => handleFormChange('hata_karti_turu', DEFECT_CARD_TYPES.RED)}
-                className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer flex items-center gap-3 ${
+                className={`p-3 sm:p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer flex items-center gap-2.5 sm:gap-3 min-w-0 ${
                   formData.hata_karti_turu === DEFECT_CARD_TYPES.RED
                     ? 'bg-rose-50 dark:bg-rose-500/20 border-rose-400 dark:border-rose-500 text-rose-900 dark:text-rose-200 shadow-xs'
                     : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-rose-300'
                 }`}
               >
                 <span className="w-4 h-4 rounded-full bg-rose-500 flex-shrink-0 shadow-xs" />
-                <div>
-                  <div className="font-black text-xs sm:text-sm">Kırmızı Hata Kartı</div>
-                  <div className="text-[10px] opacity-75">Bakım / Teknik Destek Gerektiren</div>
+                <div className="min-w-0">
+                  <div className="font-black text-xs sm:text-sm break-words">Kırmızı Hata Kartı</div>
+                  <div className="text-[10px] opacity-75 leading-snug">
+                    Bakım / Teknik Destek Gerektiren
+                  </div>
                 </div>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleFormChange('hata_karti_turu', DEFECT_CARD_TYPES.YELLOW)}
-                className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer flex items-center gap-3 ${
+                className={`p-3 sm:p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer flex items-center gap-2.5 sm:gap-3 min-w-0 ${
                   formData.hata_karti_turu === DEFECT_CARD_TYPES.YELLOW
                     ? 'bg-amber-50 dark:bg-amber-500/20 border-amber-400 dark:border-amber-500 text-amber-900 dark:text-amber-200 shadow-xs'
                     : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-amber-300'
                 }`}
               >
                 <span className="w-4 h-4 rounded-full bg-amber-400 flex-shrink-0 shadow-xs" />
-                <div>
-                  <div className="font-black text-xs sm:text-sm">Sarı Hata Kartı</div>
-                  <div className="text-[10px] opacity-75">Operatör / Bölüm İçi Giderilebilir</div>
+                <div className="min-w-0">
+                  <div className="font-black text-xs sm:text-sm break-words">Sarı Hata Kartı</div>
+                  <div className="text-[10px] opacity-75 leading-snug">
+                    Operatör / Bölüm İçi Giderilebilir
+                  </div>
                 </div>
               </button>
             </div>
@@ -487,12 +492,12 @@ export default function DashboardView({
           </div>
 
           {/* 4. Gelişme Notları (Aksiyon modülünde de görünür) */}
-          <div className="bg-white/95 dark:bg-slate-900/90 p-5 rounded-3xl shadow-sm border border-violet-200/80 dark:border-slate-800 flex flex-col h-[290px]">
-            <div className="flex items-center justify-between mb-2">
+          <div className="bg-white/95 dark:bg-slate-900/90 p-4 sm:p-5 rounded-3xl shadow-sm border border-violet-200/80 dark:border-slate-800 flex flex-col h-[320px] sm:h-[290px]">
+            <div className="flex flex-wrap items-center justify-between gap-1.5 mb-2">
               <label className="block text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                 Gelişme Notları
               </label>
-              <span className="text-[11px] font-semibold text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10 px-2.5 py-0.5 rounded-full border border-violet-200 dark:border-violet-500/20">
+              <span className="text-[10px] sm:text-[11px] font-semibold text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10 px-2 sm:px-2.5 py-0.5 rounded-full border border-violet-200 dark:border-violet-500/20 whitespace-nowrap">
                 Aksiyon Modülü ile Senkronize
               </span>
             </div>
@@ -534,7 +539,7 @@ export default function DashboardView({
               <div className="p-2 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 flex gap-2 items-center">
                 <input
                   type="text"
-                  className="flex-1 bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-100 rounded-xl px-3.5 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+                  className="flex-1 min-w-0 bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-100 rounded-xl px-3 sm:px-3.5 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
                   placeholder="Gelişme notu yazın..."
                   value={newNote}
                   onChange={(e) => setNewNote(e.target.value)}
@@ -549,7 +554,7 @@ export default function DashboardView({
                   type="button"
                   onClick={handleAddNote}
                   disabled={!newNote.trim()}
-                  className="bg-violet-500 hover:bg-violet-600 text-white rounded-xl px-3.5 py-2 text-xs font-bold transition-colors disabled:opacity-50 flex-shrink-0 cursor-pointer"
+                  className="bg-violet-500 hover:bg-violet-600 text-white rounded-xl px-3 sm:px-3.5 py-2 text-xs font-bold transition-colors disabled:opacity-50 flex-shrink-0 cursor-pointer whitespace-nowrap"
                 >
                   Not Ekle
                 </button>
@@ -564,7 +569,7 @@ export default function DashboardView({
             <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wider">
               Problem Fotoğrafı {isNew && <span className="text-rose-500">*</span>}
             </label>
-            <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl h-64 flex flex-col items-center justify-center relative overflow-hidden bg-slate-50 dark:bg-slate-800/50 hover:border-rose-400 dark:hover:border-rose-400 cursor-pointer group transition-colors">
+            <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl h-52 sm:h-64 flex flex-col items-center justify-center relative overflow-hidden bg-slate-50 dark:bg-slate-800/50 hover:border-rose-400 dark:hover:border-rose-400 cursor-pointer group transition-colors">
               {previewUrl ? (
                 <img src={previewUrl} alt="Problem" className="object-contain h-full w-full" />
               ) : (
@@ -608,12 +613,12 @@ export default function DashboardView({
                 <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
                   Hata Kartı Termini (1 Hafta)
                 </label>
-                <div className="w-full border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/70 dark:bg-emerald-500/10 rounded-xl p-2.5 font-bold text-emerald-800 dark:text-emerald-300 text-sm flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
-                    <Clock className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                    {toDisplayDate(formData.hedef_tarih)}
+                <div className="w-full border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/70 dark:bg-emerald-500/10 rounded-xl p-2.5 font-bold text-emerald-800 dark:text-emerald-300 text-sm flex flex-wrap items-center justify-between gap-1.5">
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    <Clock className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+                    <span className="truncate">{toDisplayDate(formData.hedef_tarih)}</span>
                   </span>
-                  <span className="text-[10px] uppercase px-2 py-0.5 rounded-full bg-emerald-200/70 dark:bg-emerald-500/20">
+                  <span className="text-[10px] uppercase px-2 py-0.5 rounded-full bg-emerald-200/70 dark:bg-emerald-500/20 whitespace-nowrap">
                     7 Gün Termin
                   </span>
                 </div>
@@ -684,39 +689,49 @@ export default function DashboardView({
               {isSaving ? 'Kaydediliyor...' : 'Hata Kartını Kaydet ve Aksiyon Oluştur'}
             </button>
           ) : (
-            <div className="flex items-center justify-between bg-white/95 dark:bg-slate-900/90 p-4 rounded-2xl shadow-xs border border-slate-200/80 dark:border-slate-800 gap-3">
-              <button
-                onClick={() =>
-                  saveThen(
-                    () => setCurrentIndex(Math.max(0, currentIndex - 1)),
-                    'Kayıt edilemediği için geçiş yapılamadı.'
-                  )
-                }
-                disabled={currentIndex <= 0}
-                className="flex items-center px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl hover:bg-slate-200 disabled:opacity-40 cursor-pointer"
-              >
-                <ChevronLeft className="w-4 h-4 mr-1" /> Önceki Kart
-              </button>
+            <div className="bg-white/95 dark:bg-slate-900/90 p-3 sm:p-4 rounded-2xl shadow-xs border border-slate-200/80 dark:border-slate-800 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2.5">
+              {/* Önceki / Sonraki Kart */}
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  onClick={() =>
+                    saveThen(
+                      () => setCurrentIndex(Math.max(0, currentIndex - 1)),
+                      'Kayıt edilemediği için geçiş yapılamadı.'
+                    )
+                  }
+                  disabled={currentIndex <= 0}
+                  className="flex-1 sm:flex-none justify-center flex items-center px-3 sm:px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors min-w-0"
+                >
+                  <ChevronLeft className="w-4 h-4 mr-1 flex-shrink-0" />
+                  <span className="truncate">Önceki Kart</span>
+                </button>
+
+                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap px-1">
+                  {currentIndex + 1} / {issues.length}
+                </span>
+
+                <button
+                  onClick={() =>
+                    saveThen(
+                      () => setCurrentIndex(Math.min(issues.length - 1, currentIndex + 1)),
+                      'Kayıt edilemediği için geçiş yapılamadı.'
+                    )
+                  }
+                  disabled={currentIndex >= issues.length - 1}
+                  className="flex-1 sm:flex-none justify-center flex items-center px-3 sm:px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors min-w-0"
+                >
+                  <span className="truncate">Sonraki Kart</span>
+                  <ChevronRight className="w-4 h-4 ml-1 flex-shrink-0" />
+                </button>
+              </div>
 
               <button
                 onClick={() => handleSave(false)}
                 disabled={isSaving}
-                className="flex items-center px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer"
+                className="w-full sm:w-auto justify-center flex items-center px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-xs disabled:opacity-60 cursor-pointer transition-colors whitespace-nowrap"
               >
-                <Save className="w-4 h-4 mr-1.5" /> Değişiklikleri Kaydet
-              </button>
-
-              <button
-                onClick={() =>
-                  saveThen(
-                    () => setCurrentIndex(Math.min(issues.length - 1, currentIndex + 1)),
-                    'Kayıt edilemediği için geçiş yapılamadı.'
-                  )
-                }
-                disabled={currentIndex >= issues.length - 1}
-                className="flex items-center px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl hover:bg-slate-200 disabled:opacity-40 cursor-pointer"
-              >
-                Sonraki Kart <ChevronRight className="w-4 h-4 ml-1" />
+                <Save className="w-4 h-4 mr-1.5 flex-shrink-0" />
+                {isSaving ? 'Kaydediliyor...' : 'Değişiklikleri Kaydet'}
               </button>
             </div>
           )}
