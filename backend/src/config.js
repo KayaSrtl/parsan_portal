@@ -47,4 +47,17 @@ module.exports = {
   // Ilk kurulumda örnek kullanıcıları oluştur. Üretimde kapalı olmali.
   SEED_USERS: process.env.SEED_USERS === 'true' || !isProduction,
   SEED_PASSWORD: process.env.SEED_PASSWORD || 'parsan123',
+
+  // --- E-posta bildirimleri (Resend) ----------------------------------------
+  // RESEND_API_KEY tanimli degilse e-posta gönderimi sessizce devre disi kalir;
+  // uygulamanin geri kalani (uygulama içi bildirimler) normal çalisir.
+  RESEND_API_KEY: process.env.RESEND_API_KEY || '',
+  RESEND_FROM: process.env.RESEND_FROM || 'PARSAN Portal <bildirim@engrare.com>',
+  RESEND_TIMEOUT_MS: Number(process.env.RESEND_TIMEOUT_MS) || 10000,
+  // E-posta bildirimlerini tamamen kapatmak için false yapin.
+  EMAIL_NOTIFICATIONS: process.env.EMAIL_NOTIFICATIONS !== 'false',
+  // Uygulamanin dis adresi; e-posta içindeki "Portalı Aç" baglantisinda kullanilir.
+  APP_URL: (process.env.APP_URL || 'https://parsan.engrare.com').replace(/\/+$/, ''),
+  // Bölüm yöneticisi eslesmese bile her zaman bilgilendirilecek adresler.
+  NOTIFY_FALLBACK_EMAILS: parseList(process.env.NOTIFY_FALLBACK_EMAILS, []),
 };

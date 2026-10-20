@@ -19,7 +19,9 @@ router.get(
   '/',
   requireRole(...MANAGER_ROLES),
   asyncHandler(async (req, res) => {
-    res.json(await all('SELECT id, name, email, role FROM users ORDER BY name COLLATE NOCASE'));
+    res.json(
+      await all('SELECT id, name, email, role, department FROM users ORDER BY name COLLATE NOCASE')
+    );
   })
 );
 
@@ -32,10 +34,16 @@ const validate = ({ name, email, role }, { requireAll = true } = {}) => {
   return null;
 };
 
+/** Boş/geçersiz bölüm değerlerini NULL'a indirger. */
+const normalizeDepartment = (value) => {
+  const trimmed = String(value ?? '').trim();
+  return trimmed ? trimmed : null;
+};
+
 router.post(
   '/',
   asyncHandler(async (req, res) => {
-    const { name, email, password, role = ROLES.STANDARD } = req.body || {};
+    const { name, email, password, role = ROLES.STANDARD, department } = req.body || {};
 
     const invalid = validate({ name, email, role });
     if (invalid) return res.status(400).json({ error: invalid });
@@ -48,18 +56,24 @@ router.post(
 
     const passwordHash = bcrypt.hashSync(password, bcrypt.genSaltSync(10));
     const { lastID } = await run(
-      'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)',
-      [name.trim(), email.trim(), passwordHash, role]
+      'INSERT INTO users (name, email, password, role, department) VALUES (?, ?, ?, ?, ?)',
+      [name.trim(), email.trim(), passwordHash, role, normalizeDepartment(department)]
     );
 
-    res.status(201).json({ id: lastID, name: name.trim(), email: email.trim(), role });
+    res.status(201).json({
+      id: lastID,
+      name: name.trim(),
+      email: email.trim(),
+      role,
+      department: normalizeDepartment(department),
+    });
   })
 );
 
 router.put(
   '/:id',
   asyncHandler(async (req, res) => {
-    const { name, email, password, role } = req.body || {};
+    const { name, email, password, role, department } = req.body || {};
     const userId = Number(req.params.id);
 
     const invalid = validate({ name, email, role });
@@ -89,18 +103,16 @@ router.put(
         return res.status(400).json({ error: 'Şifre en az 6 karakter olmalıdır' });
       }
       const passwordHash = bcrypt.hashSync(password, bcrypt.genSaltSync(10));
-      await run('UPDATE users SET name = ?, email = ?, password = ?, role = ? WHERE id = ?', [
-        name.trim(),
-        email.trim(),
-        passwordHash,
-        role,
-        userId,
-      ]);
+      await run(
+        'UPDATE users SET name = ?, email = ?, password = ?, role = ?, department = ? WHERE id = ?',
+        [name.trim(), email.trim(), passwordHash, role, normalizeDepartment(department), userId]
+      );
     } else {
-      await run('UPDATE users SET name = ?, email = ?, role = ? WHERE id = ?', [
+      await run('UPDATE users SET name = ?, email = ?, role = ?, department = ? WHERE id = ?', [
         name.trim(),
         email.trim(),
         role,
+        normalizeDepartment(department),
         userId,
       ]);
     }

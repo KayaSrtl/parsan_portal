@@ -9,6 +9,8 @@ const {
 } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/errors');
 const { parseArray } = require('../utils/json');
+const config = require('../config');
+const mailer = require('../services/mailer');
 const {
   normalizeSubActions,
   deriveProgress,
@@ -23,6 +25,15 @@ router.use(authenticateToken);
 
 const STATUS_OPEN = 'Açık';
 const STATUS_DONE = 'Tamamlandı';
+
+/**
+ * "Dövme Yöneticisi" gibi atama adlarından bölüm adını çıkarır.
+ * E-posta bildiriminde ilgili bölüm kullanıcılarını bulmak için kullanılır.
+ */
+const departmentFromAssignee = (assigneeName) =>
+  String(assigneeName || '')
+    .replace(/\s*(yöneticisi|sorumlusu|şefi|müdürü)\s*$/i, '')
+    .trim();
 
 /** Misafir (saha operatörü) aksiyon modülüne erişemez. */
 const denyGuest = (req, res, next) => {
@@ -108,6 +119,25 @@ router.post(
     );
 
     const created = await get(`${SELECT_WITH_ISSUE} WHERE a.id = ?`, [lastID]);
+
+    // Atanan kişiye/bölüme yeni görev e-postası gönder.
+    mailer.notifyAsync({
+      title: 'Yeni Görev Atandı',
+      message: [
+        `Size yeni bir aksiyon atandı: ${action_content.trim()}`,
+        `Sorumlu: ${assignee_name.trim()}`,
+        `Hedef Tarih: ${hasInitialTarget ? String(target_date).split('T')[0] : 'Henüz belirlenmedi'}`,
+        `Atayan: ${req.user.name || 'Sistem'}`,
+      ].join('\n'),
+      link: '?app=aksiyon_modulu',
+      type: 'action',
+      sender: req.user.name || 'Sistem',
+      names: [assignee_name.trim()],
+      department: departmentFromAssignee(assignee_name),
+      extraEmails: config.NOTIFY_FALLBACK_EMAILS,
+      excludeUserIds: [req.user.id],
+    });
+
     res.status(201).json({ id: lastID, message: 'Aksiyon oluşturuldu', action: serialize(created) });
   })
 );
@@ -234,6 +264,37 @@ router.put(
     );
 
     const updated = await get(`${SELECT_WITH_ISSUE} WHERE a.id = ?`, [actionId]);
+
+    // Anlamlı bir değişiklik varsa ilgili kişilere e-posta gönder.
+    const statusChanged = status !== existing.status;
+    if (newNoteText || statusChanged || justDefinedTargetDate) {
+      const changes = [];
+      if (justDefinedTargetDate) changes.push(`Hedef tarih belirlendi: ${targetDate.split('T')[0]}`);
+      if (statusChanged) changes.push(`Durum: ${existing.status} → ${status}`);
+      if (newNoteText) changes.push(`Yeni not: ${newNoteText}`);
+
+      mailer.notifyAsync({
+        title:
+          status === STATUS_DONE
+            ? 'Görev Tamamlandı'
+            : `Görev Güncellendi: ${content.substring(0, 60)}${content.length > 60 ? '...' : ''}`,
+        message: [
+          `Aksiyon: ${content}`,
+          `Sorumlu: ${assignee}`,
+          ...changes,
+          `Güncelleyen: ${req.user.name || 'Sistem'}`,
+        ].join('\n'),
+        link: '?app=aksiyon_modulu',
+        type: status === STATUS_DONE ? 'success' : 'action',
+        sender: req.user.name || 'Sistem',
+        names: [assignee],
+        department: departmentFromAssignee(assignee),
+        includeManagers: status === STATUS_DONE,
+        extraEmails: config.NOTIFY_FALLBACK_EMAILS,
+        excludeUserIds: [req.user.id],
+      });
+    }
+
     res.json({ message: 'Aksiyon güncellendi', action: serialize(updated) });
   })
 );

@@ -13,6 +13,12 @@ services:
       DB_PATH: data/database.sqlite
       SEED_USERS: ${SEED_USERS:-false}
       SEED_PASSWORD: ${SEED_PASSWORD:-}
+      # E-posta bildirimleri (Resend). Anahtar yoksa e-posta gönderimi kapalı kalır.
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM: ${RESEND_FROM:-PARSAN Portal <bildirim@engrare.com>}
+      EMAIL_NOTIFICATIONS: ${EMAIL_NOTIFICATIONS:-true}
+      APP_URL: ${APP_URL:-https://parsan.engrare.com}
+      NOTIFY_FALLBACK_EMAILS: ${NOTIFY_FALLBACK_EMAILS:-}
     volumes:
       - ./data:/app/data
       - ./data/uploads:/app/uploads

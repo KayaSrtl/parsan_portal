@@ -3,6 +3,8 @@ const { get, all, run } = require('../db');
 const { authenticateToken, requireRole, ROLES } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/errors');
 const { maintenanceImages } = require('../middleware/upload');
+const config = require('../config');
+const mailer = require('../services/mailer');
 
 const router = express.Router();
 
@@ -78,6 +80,31 @@ router.post(
     );
 
     const created = await get('SELECT * FROM maintenances WHERE id = ?', [lastID]);
+
+    // Anormal bir bulgu varsa bakım sorumlularına e-posta gönder.
+    const problems = [];
+    if (!pressureOk) problems.push(`Hava basıncı uygun değil (${pressure} bar, beklenen 3-5 bar)`);
+    if (item2Status === 'Hava Kaçağı Var') problems.push('Hava kaçağı tespit edildi');
+    if (item3Status === 'Boşaltılmadı') problems.push('Atık yağ tankı boşaltılmamış');
+
+    if (problems.length) {
+      mailer.notifyAsync({
+        title: `Otonom Bakım Uyarısı: ${data.tezgah_no.trim()}`,
+        message: [
+          `${data.tezgah_no.trim()} tezgahında yapılan otonom bakım kontrolünde sorun tespit edildi.`,
+          ...problems.map((p) => `• ${p}`),
+          `Vardiya: ${data.vardiya || '1. Vardiya (08:00 - 16:00)'}`,
+          `Operatör: ${req.user.name || 'Saha Operatörü'}`,
+        ].join('\n'),
+        link: '?app=otonom_bakim',
+        type: 'warning',
+        sender: req.user.name || 'Saha Operatörü',
+        includeManagers: true,
+        extraEmails: config.NOTIFY_FALLBACK_EMAILS,
+        excludeUserIds: [req.user.id],
+      });
+    }
+
     res.status(201).json({
       id: lastID,
       message: 'Otonom bakım kontrolü kaydedildi',

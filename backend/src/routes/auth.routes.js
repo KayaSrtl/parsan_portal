@@ -32,7 +32,13 @@ router.post(
 
     res.json({
       token,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role },
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        department: user.department || null,
+      },
     });
   })
 );
@@ -76,7 +82,10 @@ router.get(
         isGuest: true,
       });
     }
-    const user = await get('SELECT id, name, email, role FROM users WHERE id = ?', [req.user.id]);
+    const user = await get(
+      'SELECT id, name, email, role, department FROM users WHERE id = ?',
+      [req.user.id]
+    );
     if (!user) return res.status(401).json({ error: 'Kullanıcı bulunamadı', code: 'TOKEN_INVALID' });
     res.json(user);
   })

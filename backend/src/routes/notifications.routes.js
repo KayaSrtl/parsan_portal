@@ -1,7 +1,9 @@
 const express = require('express');
 const { get, all, run } = require('../db');
-const { authenticateToken, isManager } = require('../middleware/auth');
+const { authenticateToken, isManager, requireRole, ROLES } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/errors');
+const config = require('../config');
+const mailer = require('../services/mailer');
 
 const router = express.Router();
 
@@ -130,7 +132,73 @@ router.post(
     );
 
     const created = await get('SELECT * FROM notifications WHERE id = ?', [result.lastID]);
+
+    // Aynı bildirimi e-posta olarak da ilgili kişiye gönder.
+    // target_user_id yoksa (herkese duyuru) yöneticiler bilgilendirilir.
+    mailer.notifyAsync({
+      title,
+      message,
+      link,
+      type,
+      sender: req.user.name || 'Sistem',
+      userIds: target_user_id ? [target_user_id] : [],
+      includeManagers: !target_user_id,
+      excludeUserIds: [req.user.id],
+    });
+
     res.status(201).json(created);
+  })
+);
+
+/** E-posta bildirim altyapısının durumu (yalnızca süper admin). */
+router.get(
+  '/email-status',
+  requireRole(ROLES.SUPER_ADMIN),
+  asyncHandler(async (req, res) => {
+    const lastLogs = await all('SELECT * FROM email_logs ORDER BY id DESC LIMIT 10');
+    res.json({
+      enabled: mailer.isEnabled(),
+      from: config.RESEND_FROM,
+      appUrl: config.APP_URL,
+      fallbackEmails: config.NOTIFY_FALLBACK_EMAILS,
+      recent: lastLogs,
+    });
+  })
+);
+
+/** Test e-postası: giriş yapan süper adminin adresine örnek bildirim yollar. */
+router.post(
+  '/test-email',
+  requireRole(ROLES.SUPER_ADMIN),
+  asyncHandler(async (req, res) => {
+    if (!mailer.isEnabled()) {
+      return res.status(400).json({
+        error: 'E-posta bildirimleri kapalı. RESEND_API_KEY tanımlanmalıdır.',
+      });
+    }
+
+    const target = await get('SELECT id, name, email FROM users WHERE id = ?', [req.user.id]);
+    if (!target?.email) {
+      return res.status(400).json({ error: 'Hesabınıza tanımlı bir e-posta adresi bulunamadı' });
+    }
+
+    const result = await mailer.notify({
+      title: 'Test Bildirimi',
+      message:
+        'Bu e-posta PARSAN İşletme Portalı e-posta bildirim sisteminin doğru çalıştığını doğrulamak için gönderilmiştir.',
+      link: '?app=ayarlar',
+      type: 'success',
+      sender: req.user.name || 'Sistem',
+      userIds: [target.id],
+    });
+
+    if (!result.sent) {
+      return res.status(502).json({
+        error: 'Test e-postası gönderilemedi. Sunucu günlüklerini kontrol edin.',
+      });
+    }
+
+    res.json({ message: `Test e-postası ${target.email} adresine gönderildi` });
   })
 );
 

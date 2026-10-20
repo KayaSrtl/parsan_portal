@@ -3,6 +3,8 @@ const { get, all, run } = require('../db');
 const { authenticateToken, requireRole, ROLES } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/errors');
 const { singleImage } = require('../middleware/upload');
+const config = require('../config');
+const mailer = require('../services/mailer');
 
 const router = express.Router();
 
@@ -61,6 +63,27 @@ router.post(
     );
 
     const created = await get('SELECT * FROM safety_reports WHERE id = ?', [lastID]);
+
+    // İSG bildirimi kritik/yüksek riskliyse yöneticilere anında e-posta gönder.
+    const urgent = ['Yüksek', 'Kritik'].includes(riskLevel);
+    mailer.notifyAsync({
+      title: `${type} #${lastID} (${riskLevel} Risk)`,
+      message: [
+        `[${data.alan.trim().toUpperCase()}] alanında ${type.toLowerCase()} bildirildi.`,
+        `Risk Derecesi: ${riskLevel}`,
+        `Bölüm: ${data.bolum || '-'}`,
+        `Tanım: ${data.tanim.trim()}`,
+        `Bildiren: ${req.user.name || 'Saha Operatörü'}`,
+      ].join('\n'),
+      link: '?app=isg_modulu',
+      type: urgent ? 'warning' : 'info',
+      sender: req.user.name || 'Saha Operatörü',
+      department: data.bolum || '',
+      includeManagers: true,
+      extraEmails: config.NOTIFY_FALLBACK_EMAILS,
+      excludeUserIds: [req.user.id],
+    });
+
     res.status(201).json({ id: lastID, message: 'İSG bildirimi başarıyla oluşturuldu', report: created });
   })
 );
@@ -92,6 +115,26 @@ router.put(
     }
 
     const updated = await get('SELECT * FROM safety_reports WHERE id = ?', [reportId]);
+
+    // Durum değiştiyse bildirimi açan kişiye ve yöneticilere bilgi ver.
+    if (durum !== undefined && durum !== existing.durum) {
+      mailer.notifyAsync({
+        title: `İSG Bildirimi Güncellendi (#${reportId})`,
+        message: [
+          `[${(existing.alan || '').toUpperCase()}] alanındaki ${existing.type} kaydının durumu "${existing.durum}" → "${durum}" olarak değiştirildi.`,
+          `Tanım: ${existing.tanim}`,
+          `Güncelleyen: ${req.user.name || 'Sistem'}`,
+        ].join('\n'),
+        link: '?app=isg_modulu',
+        type: durum === 'Kapatıldı' ? 'success' : 'info',
+        sender: req.user.name || 'Sistem',
+        userIds: [existing.user_id],
+        includeManagers: true,
+        extraEmails: config.NOTIFY_FALLBACK_EMAILS,
+        excludeUserIds: [req.user.id],
+      });
+    }
+
     res.json({ message: 'İSG bildirimi güncellendi', report: updated });
   })
 );

@@ -4,6 +4,8 @@ const { authenticateToken, requireRole, ROLES } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/errors');
 const { singleImage } = require('../middleware/upload');
 const { parseArray } = require('../utils/json');
+const config = require('../config');
+const mailer = require('../services/mailer');
 const {
   normalizeSubActions,
   deriveProgress,
@@ -143,6 +145,24 @@ router.post(
          VALUES (NULL, ?, ?, ?, 'warning', '?app=hata_kartlari', 0, ?)`,
         [reporterName, notifTitle, notifMsg, new Date().toISOString()]
       );
+
+      // İlgili bölümün yöneticisine ve sistem yöneticilerine e-posta gönder.
+      mailer.notifyAsync({
+        title: notifTitle,
+        message: [
+          `${reporterName} tarafından [${(data.bildirilen_alan || '').toUpperCase()}] alanında hata kartı açıldı.`,
+          `İlgili Bölüm: ${data.ilgili_bolum}`,
+          `Problem: ${data.problem_tanimi.trim()}`,
+          `Hedef Tarih: ${String(finalTargetDate).split('T')[0]}`,
+        ].join('\n'),
+        link: '?app=hata_kartlari',
+        type: 'warning',
+        sender: reporterName,
+        department: data.ilgili_bolum.trim(),
+        includeManagers: true,
+        extraEmails: config.NOTIFY_FALLBACK_EMAILS,
+        excludeUserIds: [req.user.id],
+      });
     } catch (actErr) {
       console.warn('[issues] Otomatik aksiyon oluşturma uyarısı:', actErr.message);
     }
@@ -232,6 +252,31 @@ router.put(
       } catch (syncErr) {
         console.warn('[issues] Aksiyon durum senkronizasyon uyarısı:', syncErr.message);
       }
+
+      // Durum değişikliğini ilgili bölüme, kartı açan kişiye ve yöneticilere duyur.
+      const statusTitle =
+        newStatus === 'Kapalı'
+          ? `Hata Kartı Kapatıldı (#${issueId})`
+          : `Hata Kartı Durumu Güncellendi (#${issueId})`;
+      const statusMessage = [
+        `[${(oldIssue.bildirilen_alan || '').toUpperCase()}] alanındaki kartın durumu "${oldIssue.mevcut_durum}" → "${newStatus}" olarak değiştirildi.`,
+        `İlgili Bölüm: ${oldIssue.ilgili_bolum || '-'}`,
+        `Problem: ${oldIssue.problem_tanimi || '-'}`,
+        `Güncelleyen: ${req.user.name || 'Sistem'}`,
+      ].join('\n');
+
+      mailer.notifyAsync({
+        title: statusTitle,
+        message: statusMessage,
+        link: '?app=hata_kartlari',
+        type: newStatus === 'Kapalı' ? 'success' : 'info',
+        sender: req.user.name || 'Sistem',
+        userIds: [oldIssue.user_id],
+        department: oldIssue.ilgili_bolum || '',
+        includeManagers: true,
+        extraEmails: config.NOTIFY_FALLBACK_EMAILS,
+        excludeUserIds: [req.user.id],
+      });
     }
 
     const updated = await get('SELECT * FROM issues WHERE id = ?', [issueId]);

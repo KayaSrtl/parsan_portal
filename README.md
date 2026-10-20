@@ -96,6 +96,48 @@ Yetki kontrolleri hem arayüzde hem sunucuda yapılır; arayüzü atlayan istekl
 
 ---
 
+## E-posta Bildirimleri (Resend)
+
+Portal, uygulama içi bildirimlerin yanı sıra ilgili kişilere **Resend** üzerinden e-posta gönderir.
+Gönderim "ateşle-unut" mantığıyla çalışır: e-posta servisi erişilemez olsa bile kullanıcı işlemi
+başarıyla tamamlanır.
+
+### Kurulum
+
+1. [resend.com](https://resend.com) üzerinden bir API anahtarı oluşturun.
+2. Resend panelinde gönderen alan adını (`engrare.com`) **doğrulayın** (DNS kayıtları).
+3. Kök dizindeki `.env` dosyasına şu değerleri ekleyin:
+
+```env
+RESEND_API_KEY=re_xxxxxxxxxxxxxxxx
+RESEND_FROM="PARSAN Portal <bildirim@engrare.com>"
+EMAIL_NOTIFICATIONS=true
+APP_URL=https://parsan.engrare.com
+NOTIFY_FALLBACK_EMAILS=
+```
+
+4. `docker compose up -d --build api` ile API'yi yeniden oluşturun.
+5. Portal → **Ayarlar → E-posta Bildirimleri** bölümünden **Test E-postası Gönder** ile doğrulayın.
+
+`RESEND_API_KEY` boş bırakılırsa e-posta gönderimi kapalı kalır; uygulama içi bildirimler çalışmaya devam eder.
+
+### Hangi olayda kime gider?
+
+| Olay | Alıcılar |
+| --- | --- |
+| Yeni hata kartı | Kartın **ilgili bölümüne** atanmış kullanıcılar + tüm yöneticiler |
+| Hata kartı durum değişikliği | Kartı açan kullanıcı + ilgili bölüm + yöneticiler |
+| Yeni aksiyon ataması | Atanan kişi (ad eşleşmesi) + atanan bölüm |
+| Aksiyon güncellemesi / tamamlanması | Aksiyon sorumlusu + (tamamlandıysa) yöneticiler |
+| İSG bildirimi | İlgili bölüm + yöneticiler (Yüksek/Kritik riskler "acil" olarak işaretlenir) |
+| Otonom bakım anormalliği | Yöneticiler (basınç aralığı dışı, hava kaçağı, boşaltılmamış yağ tankı) |
+| Manuel bildirim/mesaj | Hedef kullanıcı; herkese duyuruda yöneticiler |
+
+Alıcılar `users.department` alanına göre bulunur. Bölüm ataması **Ayarlar → Kullanıcı Yönetimi**
+ekranından yapılır. Gönderim kayıtları `email_logs` tablosunda tutulur.
+
+---
+
 ## Bakım Komutları
 
 `backend/` dizininde:

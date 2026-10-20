@@ -4,11 +4,18 @@ import { Shield, Trash2, User as UserIcon, UserPlus } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { useUsers } from '../hooks/useUsers';
 import { useToast } from '../hooks/useToast';
-import { OPTION_CLASS, ROLES, ROLE_LABELS, isSuperAdmin } from '../lib/constants';
+import { DEPARTMENTS, OPTION_CLASS, ROLES, ROLE_LABELS, isSuperAdmin } from '../lib/constants';
 import ConfirmDialog from './ui/ConfirmDialog';
 import Toast from './ui/Toast';
 
-const EMPTY_FORM = { id: null, name: '', email: '', password: '', role: ROLES.STANDARD };
+const EMPTY_FORM = {
+  id: null,
+  name: '',
+  email: '',
+  password: '',
+  role: ROLES.STANDARD,
+  department: '',
+};
 
 const ROLE_BADGE = {
   [ROLES.SUPER_ADMIN]: { className: 'bg-purple-600', label: 'Süper Admin' },
@@ -41,6 +48,7 @@ export default function UserManagement({ currentUser }) {
           email: formData.email,
           password: formData.password,
           role: formData.role,
+          department: formData.department,
         },
       });
       showToast(isEditing ? 'Kullanıcı güncellendi.' : 'Kullanıcı eklendi.');
@@ -138,6 +146,28 @@ export default function UserManagement({ currentUser }) {
                 ))}
               </select>
             </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">
+                Bölüm (E-posta Bildirimleri)
+              </label>
+              <select
+                value={formData.department || ''}
+                onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                className={inputClass}
+              >
+                <option value="" className={OPTION_CLASS}>
+                  — Bölüm Yok —
+                </option>
+                {DEPARTMENTS.map((dept) => (
+                  <option key={dept} value={dept} className={OPTION_CLASS}>
+                    {dept}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                İlgili bölümde açılan hata kartları bu kullanıcıya e-posta ile bildirilir.
+              </p>
+            </div>
             <div className="flex gap-2">
               <button
                 type="submit"
@@ -185,6 +215,7 @@ export default function UserManagement({ currentUser }) {
                       </div>
                       <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">
                         {user.email}
+                        {user.department ? ` · ${user.department}` : ''}
                       </div>
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
@@ -195,6 +226,7 @@ export default function UserManagement({ currentUser }) {
                             name: user.name,
                             email: user.email,
                             role: user.role,
+                            department: user.department || '',
                             password: '',
                           })
                         }

@@ -141,11 +141,23 @@ async function createTables() {
     value TEXT
   )`);
 
+  // Resend üzerinden gönderilen e-posta bildirimlerinin denetim kaydı.
+  await run(`CREATE TABLE IF NOT EXISTS email_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    recipients TEXT,
+    subject TEXT,
+    status TEXT, -- 'sent' | 'failed' | 'skipped'
+    provider_id TEXT,
+    error TEXT,
+    created_at TEXT
+  )`);
+
   await run('CREATE INDEX IF NOT EXISTS idx_issues_user ON issues(user_id)');
   await run('CREATE INDEX IF NOT EXISTS idx_actions_assignee ON actions(assignee_name)');
   await run('CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id)');
   await run('CREATE INDEX IF NOT EXISTS idx_safety_type ON safety_reports(type)');
   await run('CREATE INDEX IF NOT EXISTS idx_maintenances_tezgah ON maintenances(tezgah_no)');
+  await run('CREATE INDEX IF NOT EXISTS idx_email_logs_created ON email_logs(created_at)');
 }
 
 // --- Migrasyonlar ------------------------------------------------------------
@@ -159,6 +171,9 @@ async function addColumnIfMissing(table, column, definition) {
 }
 
 async function migrate() {
+  // Kullanıcının bağlı olduğu bölüm; e-posta bildirimlerinde "ilgili kişi"yi
+  // (ör. hata kartının düştüğü bölümün yöneticisini) bulmak için kullanılır.
+  await addColumnIfMissing('users', 'department', 'TEXT');
   await addColumnIfMissing('actions', 'sub_actions', "TEXT DEFAULT '[]'");
   await addColumnIfMissing('actions', 'issue_id', 'INTEGER');
   await addColumnIfMissing('actions', 'notes', "TEXT DEFAULT '[]'");

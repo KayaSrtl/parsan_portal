@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   AlertCircle,
   Bell,
   CheckCircle,
   Database,
   Lock,
+  Mail,
   Monitor,
   Moon,
+  Send,
   Shield,
   Sun,
   UserCircle,
@@ -188,37 +190,8 @@ export default function SettingsView({ currentUser, onBack }) {
         </div>
       </Card>
 
-      {/* Bildirimler (yakında) */}
-      <div className="opacity-70">
-        <Card
-          title={
-            <>
-              Bildirim Tercihleri
-              <span className="text-xs bg-gray-200 dark:bg-slate-600 text-gray-600 dark:text-gray-300 px-2 py-1 rounded ml-2">
-                Yakında
-              </span>
-            </>
-          }
-          icon={<Bell className="text-yellow-500" />}
-        >
-          <div className="space-y-3">
-            {[
-              'Bana atanan problemlerde e-posta gönder',
-              'Problemler hedef tarihi geçtiğinde uyar',
-            ].map((text) => (
-              <label key={text} className="flex items-center gap-3 cursor-not-allowed">
-                <input
-                  type="checkbox"
-                  disabled
-                  defaultChecked
-                  className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-gray-700 dark:text-gray-300 font-medium">{text}</span>
-              </label>
-            ))}
-          </div>
-        </Card>
-      </div>
+      {/* E-posta Bildirimleri */}
+      <EmailNotificationCard currentUser={currentUser} />
 
       {currentUser.role === ROLES.SUPER_ADMIN && (
         <div className="mt-8">
@@ -240,6 +213,129 @@ export default function SettingsView({ currentUser, onBack }) {
         </div>
       </Card>
     </div>
+  );
+}
+
+function EmailNotificationCard({ currentUser }) {
+  const isSuper = currentUser.role === ROLES.SUPER_ADMIN;
+  const [status, setStatus] = useState(null);
+  const [loading, setLoading] = useState(isSuper);
+  const [sending, setSending] = useState(false);
+  const [feedback, setFeedback] = useState(null);
+
+  useEffect(() => {
+    if (!isSuper) return;
+    let cancelled = false;
+    apiFetch('/notifications/email-status')
+      .then((data) => {
+        if (!cancelled) setStatus(data);
+      })
+      .catch((err) => {
+        if (!cancelled) setFeedback({ type: 'error', message: err.message });
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isSuper]);
+
+  const handleTest = async () => {
+    setSending(true);
+    setFeedback(null);
+    try {
+      const data = await apiFetch('/notifications/test-email', { method: 'POST' });
+      setFeedback({ type: 'success', message: data.message || 'Test e-postası gönderildi.' });
+    } catch (err) {
+      setFeedback({ type: 'error', message: err.message });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const enabled = status?.enabled;
+
+  return (
+    <Card title="E-posta Bildirimleri" icon={<Bell className="text-yellow-500" />}>
+      <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+        Hata kartları, aksiyon atamaları, İSG bildirimleri ve bakım uyarıları ilgili kişilere
+        Resend altyapısı üzerinden otomatik e-posta olarak gönderilir.
+      </p>
+
+      {!isSuper && (
+        <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-sm">
+          <Mail className="w-5 h-5 flex-shrink-0 mt-0.5" />
+          <span>
+            Bildirimler hesabınıza tanımlı e-posta adresine gönderilir. Adresinizi güncellemek için
+            sistem yöneticinizle iletişime geçin.
+          </span>
+        </div>
+      )}
+
+      {isSuper && (
+        <div className="space-y-4">
+          {loading ? (
+            <p className="text-sm text-gray-500">Durum yükleniyor...</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              <div className="p-3 rounded-lg bg-gray-50 dark:bg-slate-700">
+                <div className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-1">
+                  Durum
+                </div>
+                <div
+                  className={`font-bold flex items-center gap-2 ${
+                    enabled ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                  }`}
+                >
+                  {enabled ? (
+                    <CheckCircle className="w-4 h-4" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4" />
+                  )}
+                  {enabled ? 'Aktif' : 'Kapalı (RESEND_API_KEY yok)'}
+                </div>
+              </div>
+              <div className="p-3 rounded-lg bg-gray-50 dark:bg-slate-700 min-w-0">
+                <div className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-1">
+                  Gönderen
+                </div>
+                <div className="font-semibold text-gray-800 dark:text-gray-200 break-words">
+                  {status?.from || '-'}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {feedback && (
+            <div
+              className={`p-3 rounded-md text-sm font-semibold flex items-center gap-2 ${
+                feedback.type === 'error'
+                  ? 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                  : 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+              }`}
+            >
+              {feedback.type === 'error' ? (
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              ) : (
+                <CheckCircle className="w-4 h-4 flex-shrink-0" />
+              )}
+              {feedback.message}
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={handleTest}
+            disabled={sending || !enabled}
+            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md shadow transition-colors disabled:opacity-50"
+          >
+            <Send className="w-4 h-4" />
+            {sending ? 'Gönderiliyor...' : 'Test E-postası Gönder'}
+          </button>
+        </div>
+      )}
+    </Card>
   );
 }
 
