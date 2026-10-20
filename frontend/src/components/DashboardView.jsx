@@ -95,6 +95,7 @@ export default function DashboardView({
   const [isDirty, setIsDirty] = useState(false);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [newNote, setNewNote] = useState('');
+  const [savedSuccessInfo, setSavedSuccessInfo] = useState(null);
 
   const { toast, showToast, hideToast } = useToast();
   const objectUrlRef = useRef(null);
@@ -168,9 +169,20 @@ export default function DashboardView({
           payload.mevcut_durum = STATUS.OPEN;
           await addIssue(payload, imageFile);
           setIsDirty(false);
+          setSavedSuccessInfo({
+            alan: payload.bildirilen_alan,
+            ilgili_bolum: payload.ilgili_bolum,
+            turu: payload.hata_karti_turu,
+            tanim: payload.problem_tanimi,
+          });
+          // Formu yeni kayıt için temizle
+          setFormData({ ...EMPTY_FORM, hedef_tarih: getOneWeekLaterDate() });
+          setImageFile(null);
+          setPreviewUrl(null);
+          setNewNote('');
           if (!silent) {
             showToast(
-              `Hata kartı açıldı ve "${payload.ilgili_bolum} Yöneticisi" için otomatik aksiyon oluşturuldu!`
+              `Hata kartı başarıyla kaydedildi! "${payload.ilgili_bolum} Yöneticisi" aksiyon modülüne ve takip paneline eklendi.`
             );
           }
           return true;
@@ -350,6 +362,43 @@ export default function DashboardView({
           </div>
         </div>
       </div>
+
+      {/* Kayıt Başarı Bilgilendirme Kartı */}
+      {savedSuccessInfo && (
+        <div className="mb-6 p-5 rounded-3xl bg-emerald-50 dark:bg-emerald-950/60 border-2 border-emerald-300 dark:border-emerald-600 shadow-sm animate-fade-in text-slate-800 dark:text-white">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="w-8 h-8 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="text-base font-black text-emerald-800 dark:text-emerald-300">
+                  Hata Kartı Başarıyla Kaydedildi ve İlgili Bölüm Yöneticisine İletildi!
+                </h3>
+                <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
+                  <b>{savedSuccessInfo.turu}</b> [{savedSuccessInfo.alan}] veritabanına işlendi. <b>{savedSuccessInfo.ilgili_bolum} Yöneticisi</b> için Aksiyon Modülüne otomatik görev olarak düştü ve <b>Hata Kartları Takip Bölümü</b> paneline eklendi.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => setSavedSuccessInfo(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-slate-700 cursor-pointer transition-colors"
+              >
+                + Yeni Kart Açmaya Devam Et
+              </button>
+              {onBack && (
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs cursor-pointer transition-colors"
+                >
+                  Portala Dön
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Ana Form İçeriği */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

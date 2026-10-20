@@ -103,6 +103,15 @@ router.post(
           data.gelisme_notlari || '[]',
         ]
       );
+
+      // Yöneticilere ve ilgili bölüm şefine anlık bildirim oluştur
+      const notifTitle = `Yeni ${cardType} Açıldı (#${lastID})`;
+      const notifMsg = `${req.user?.name || 'Saha Operatörü'} tarafından [${(data.bildirilen_alan || '').toUpperCase()}] alanında hata kartı açıldı. İlgili Bölüm: ${data.ilgili_bolum || 'Belirtilmedi'}. Aksiyon modülüne atandı.`;
+      await run(
+        `INSERT INTO notifications (user_id, sender_name, title, message, type, link, read, created_at)
+         VALUES (NULL, ?, ?, ?, 'warning', '?app=hata_kartlari', 0, ?)`,
+        [req.user?.name || 'Saha Operatörü', notifTitle, notifMsg, new Date().toISOString()]
+      );
     } catch (actErr) {
       console.warn('[issues] Otomatik aksiyon oluşturma uyarısı:', actErr.message);
     }

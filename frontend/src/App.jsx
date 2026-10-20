@@ -314,6 +314,7 @@ function MainApp({ user }) {
             />
           ) : (
             <PortalView
+              issues={issues}
               onSelectApp={(app) =>
                 handleNavigate(() => {
                   setCurrentIssueId(null);

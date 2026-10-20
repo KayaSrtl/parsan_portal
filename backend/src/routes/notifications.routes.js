@@ -50,7 +50,7 @@ router.get(
     // Yönetici ise açık kırmızı problemler bildirimi
     if (isManager(req.user)) {
       const redIssues = await all(
-        "SELECT COUNT(*) as count FROM issues WHERE mevcut_durum = 'Kırmızı'"
+        "SELECT COUNT(*) as count FROM issues WHERE (hata_karti_turu LIKE '%Kırmızı%' OR mevcut_durum = 'Kırmızı') AND mevcut_durum NOT IN ('Kapalı', 'Yeşil')"
       );
       const redCount = redIssues[0]?.count || 0;
       if (redCount > 0) {

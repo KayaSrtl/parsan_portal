@@ -102,11 +102,21 @@ const MODULES = [
   },
 ];
 
-function PortalView({ onSelectApp }) {
+function PortalView({ onSelectApp, issues = [] }) {
   const { user } = useAuth();
   const guestUser = isGuest(user);
   const baseUrl = import.meta.env.BASE_URL;
   const [lockedNotice, setLockedNotice] = useState('');
+
+  const getCardBadge = (mod) => {
+    if (mod.id === 'hata_kartlari' && issues.length > 0) {
+      const active = issues.filter(
+        (i) => i.mevcut_durum !== 'Kapalı' && i.mevcut_durum !== 'Yeşil'
+      ).length;
+      return `${issues.length} HATA KARTI (${active} AÇIK)`;
+    }
+    return mod.badge;
+  };
 
   const handleCardClick = (module) => {
     if (guestUser && !module.guestAllowed) {
@@ -251,7 +261,7 @@ function PortalView({ onSelectApp }) {
                         <span
                           className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border ${badgeStyle}`}
                         >
-                          {badge}
+                          {getCardBadge(module)}
                         </span>
                       )}
                     </div>
