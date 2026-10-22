@@ -90,6 +90,27 @@ export async function apiFetch(path, { method = 'GET', body, auth = true, signal
   return data;
 }
 
+/** Yetkili uçtan ikili dosya (ör. PDF) indirir ve Blob döndürür. */
+export async function apiFetchBlob(path) {
+  const token = getToken();
+  let response;
+  try {
+    response = await fetch(`${API_URL}/api${path}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+  } catch {
+    throw new ApiError('Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edin.', { status: 0 });
+  }
+  if (!response.ok) {
+    const data = await parseBody(response);
+    throw new ApiError(data?.error || `Dosya alınamadı (${response.status})`, {
+      status: response.status,
+      code: data?.code,
+    });
+  }
+  return response.blob();
+}
+
 /**
  * Sunucunun ayakta olup olmadığını kontrol eder. Asla hata fırlatmaz.
  * Vite proxy'si veya Cloudflare tüneli, backend kapalıyken HTML hata sayfası

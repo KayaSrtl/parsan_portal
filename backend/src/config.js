@@ -37,6 +37,15 @@ module.exports = {
     ? path.resolve(ROOT, process.env.DB_PATH)
     : path.join(ROOT, 'database.sqlite'),
   UPLOADS_DIR: path.join(ROOT, 'uploads'),
+  // Tezgah parça PDF'leri herkese açık /uploads altında değil, yetkili uçtan servis edilir.
+  // Docker'da DB ile aynı (kalıcı) birime düşer.
+  DOCS_DIR: path.join(
+    path.dirname(
+      process.env.DB_PATH ? path.resolve(ROOT, process.env.DB_PATH) : path.join(ROOT, 'database.sqlite')
+    ),
+    'machine-docs'
+  ),
+  MAX_PDF_BYTES: Number(process.env.MAX_PDF_BYTES) || 25 * 1024 * 1024, // 25 MB
   MAX_UPLOAD_BYTES: Number(process.env.MAX_UPLOAD_BYTES) || 8 * 1024 * 1024, // 8 MB
   CORS_ORIGINS: parseList(process.env.CORS_ORIGINS, [
     'http://localhost:5173',

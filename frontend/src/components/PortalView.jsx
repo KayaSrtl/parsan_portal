@@ -10,7 +10,7 @@ import {
   Factory,
   Gauge,
   Lock,
-  Layers,
+  Cog,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { isGuest } from '../lib/constants';
@@ -45,27 +45,27 @@ const MODULES = [
     guestAllowed: true,
   },
   {
-    id: 'hata_kartlari',
-    title: 'Hata Kartları Takip Bölümü',
-    subtitle: 'Aktiflik, Gecikme & 5 Filtreli İzleme',
+    id: 'tezgah_izleme',
+    title: 'Tezgah İzleme Modülü',
+    subtitle: 'Tezgah Yöneticisi & Dövülen Parça PDF\'i',
     description:
-      'Hata kartlarının açık, kapalı, beklemede durumlarını ve gecikme günlerini; alan, bildiren bölüm, ilgili bölüm, mevcut durum ve kart türü bazlı filtrelerle takip edin.',
-    Icon: Layers,
-    badge: '5 FİLTRE • GECİKME TAKİBİ',
-    cardBg: 'bg-violet-50/70 dark:bg-slate-900/90 border-violet-200/90 dark:border-violet-500/30',
-    badgeStyle: 'bg-violet-100 text-violet-800 border-violet-300 dark:bg-violet-500/15 dark:text-violet-300 dark:border-violet-500/30',
-    iconBg: 'bg-violet-100 text-violet-600 border border-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:border-violet-500/30',
-    hoverBorder: 'hover:border-violet-400 dark:hover:border-violet-500/60',
-    guestAllowed: false,
+      'Her tezgaha bir yönetici atanır; yönetici tezgahta dövülen parçanın PDF\'ini girer. Usta ve operatörler tezgahta şu an dövülen parçanın PDF\'ini görüntüleyebilir.',
+    Icon: Cog,
+    badge: 'TEZGAH • PARÇA PDF',
+    cardBg: 'bg-teal-50/70 dark:bg-slate-900/90 border-teal-200/90 dark:border-teal-500/30',
+    badgeStyle: 'bg-teal-100 text-teal-800 border-teal-300 dark:bg-teal-500/15 dark:text-teal-300 dark:border-teal-500/30',
+    iconBg: 'bg-teal-100 text-teal-600 border border-teal-200 dark:bg-teal-500/15 dark:text-teal-300 dark:border-teal-500/30',
+    hoverBorder: 'hover:border-teal-400 dark:hover:border-teal-500/60',
+    guestAllowed: true,
   },
   {
     id: 'aksiyon_modulu',
     title: 'Aksiyon Modülü',
-    subtitle: 'Otomatik Görev & Hedef Tanımlama',
+    subtitle: 'Aksiyonlar & Hata Kartları Takibi',
     description:
-      'Açılan hata kartlarının otomatik düştüğü aksiyon ekranı. İlk aksiyon olarak "Hedef Tanımlamak" gelir, 1 kereliğine hedef tarih girilir ve gelişme notları izlenir.',
+      'Açılan hata kartlarının otomatik düştüğü aksiyon ekranı ("Hedef Tanımlamak" ile başlar, hedef tarih 1 kereliğine girilir). Hata kartlarının açık/kapalı/beklemede durumu, gecikmesi ve 5 filtreli takibi de bu modülün içindedir.',
     Icon: CheckSquare,
-    badge: 'OTOMATİK AKSİYON',
+    badge: 'AKSİYON • HATA KARTI TAKİBİ',
     cardBg: 'bg-indigo-50/70 dark:bg-slate-900/90 border-indigo-200/90 dark:border-indigo-500/30',
     badgeStyle: 'bg-indigo-100 text-indigo-800 border-indigo-300 dark:bg-indigo-500/15 dark:text-indigo-300 dark:border-indigo-500/30',
     iconBg: 'bg-indigo-100 text-indigo-600 border border-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-300 dark:border-indigo-500/30',
@@ -109,7 +109,7 @@ function PortalView({ onSelectApp, issues = [] }) {
   const [lockedNotice, setLockedNotice] = useState('');
 
   const getCardBadge = (mod) => {
-    if (mod.id === 'hata_kartlari' && issues.length > 0) {
+    if (mod.id === 'aksiyon_modulu' && issues.length > 0) {
       const active = issues.filter(
         (i) => i.mevcut_durum !== 'Kapalı' && i.mevcut_durum !== 'Yeşil'
       ).length;
@@ -121,7 +121,7 @@ function PortalView({ onSelectApp, issues = [] }) {
   const handleCardClick = (module) => {
     if (guestUser && !module.guestAllowed) {
       setLockedNotice(
-        `"${module.title}" modülü yetkili girişi gerektirir. Misafir (Saha Operatörü) girişi ile yalnızca Hata Kartı Açma ve Otonom Bakım modüllerine erişebilirsiniz.`
+        `"${module.title}" modülü yetkili girişi gerektirir. Misafir (Saha Operatörü) girişi ile yalnızca Hata Kartı Açma, Otonom Bakım ve Tezgah İzleme (salt okunur) modüllerine erişebilirsiniz.`
       );
       return;
     }
@@ -213,7 +213,7 @@ function PortalView({ onSelectApp, issues = [] }) {
             </h2>
             <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold bg-white/80 dark:bg-slate-800 px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700">
               {guestUser
-                ? `Misafir Operatör (${user?.name}) • Hata Kartı & Otonom Bakım Erişimi`
+                ? `Misafir Operatör (${user?.name}) • Hata Kartı, Otonom Bakım & Tezgah İzleme Erişimi`
                 : 'Tüm Modüller Erişilebilir'}
             </span>
           </div>

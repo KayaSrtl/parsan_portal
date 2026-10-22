@@ -15,6 +15,7 @@ import ActionModule from './components/ActionModule';
 import AuditModule from './components/AuditModule';
 import MaintenanceModule from './components/MaintenanceModule';
 import SafetyModule from './components/SafetyModule';
+import MachineModule from './components/MachineModule';
 import ForgeAtmosphere from './components/ForgeAtmosphere';
 import MessageBox from './components/MessageBox';
 import PortalBackButton from './components/ui/PortalBackButton';
@@ -30,14 +31,24 @@ const LoadingBlock = () => (
 const APPS = {
   PORTAL: 'portal',
   ISSUE_CREATE: 'hata_karti_ac',
-  ISSUES: 'hata_kartlari',
   ACTIONS: 'aksiyon_modulu',
   AUDIT: 'bes_s_denetim',
   MAINTENANCE: 'otonom_bakim',
   SAFETY: 'isg_risk_bildirimi',
+  MACHINES: 'tezgah_izleme',
+};
+
+/**
+ * Eski bağlantılar (bildirim/e-posta içindeki linkler). Hata kartları takibi artık
+ * Aksiyon Modülü'nün bir bölümüdür; bu yüzden eski adres oraya yönlenir.
+ */
+const APP_ALIASES = {
+  hata_kartlari: { app: 'aksiyon_modulu', tab: 'open_issues' },
+  isg_modulu: { app: 'isg_risk_bildirimi' },
 };
 
 const TABS = {
+  ACTIONS: 'actions',
   OPEN: 'open_issues',
   RESOLVED: 'resolved_issues',
   DETAIL: 'dashboard',
@@ -47,12 +58,14 @@ const TABS = {
 
 const APP_TITLES = {
   [APPS.ISSUE_CREATE]: 'Hata Kartı Açma Modülü',
-  [APPS.ISSUES]: 'Hata Kartları Takip Bölümü',
   [APPS.ACTIONS]: 'Aksiyon Modülü',
   [APPS.AUDIT]: '5S Denetim Modülü',
   [APPS.MAINTENANCE]: 'Otonom Bakım Modülü',
   [APPS.SAFETY]: 'İSG Risk Bildirimi',
+  [APPS.MACHINES]: 'Tezgah İzleme Modülü',
 };
+
+const GUEST_APPS = new Set([APPS.PORTAL, APPS.ISSUE_CREATE, APPS.MAINTENANCE, APPS.MACHINES]);
 
 export default function App() {
   const { user } = useAuth();
@@ -61,10 +74,10 @@ export default function App() {
 
 const readRoute = () => {
   const params = new URLSearchParams(window.location.search);
-  return {
-    app: params.get('app') || APPS.PORTAL,
-    tab: params.get('tab') || TABS.OPEN,
-  };
+  const alias = APP_ALIASES[params.get('app')];
+  const app = alias?.app || params.get('app') || APPS.PORTAL;
+  const defaultTab = alias?.tab || (app === APPS.ACTIONS ? TABS.ACTIONS : TABS.OPEN);
+  return { app, tab: params.get('tab') || defaultTab };
 };
 
 function MainApp({ user }) {
@@ -79,18 +92,17 @@ function MainApp({ user }) {
 
   const { app: rawApp, tab: activeTab } = route;
 
-  // Misafir erişim kısıtlaması: sadece Portal, Hata Kartı Açma ve Otonom Bakım modüllerine girebilir
-  const currentApp =
-    isGuest &&
-    rawApp !== APPS.PORTAL &&
-    rawApp !== APPS.ISSUE_CREATE &&
-    rawApp !== APPS.MAINTENANCE
-      ? APPS.PORTAL
-      : rawApp;
+  // Misafir erişim kısıtlaması: Portal, Hata Kartı Açma, Otonom Bakım ve Tezgah İzleme (salt okunur)
+  const currentApp = isGuest && !GUEST_APPS.has(rawApp) ? APPS.PORTAL : rawApp;
 
   const navigate = useCallback((next) => {
+    // Bildirim bağlantıları eski adresleri taşıyabilir (ör. hata_kartlari).
+    const alias = APP_ALIASES[next.app];
+    const app = alias?.app || next.app;
+    const tab = next.tab || alias?.tab || (app === APPS.ACTIONS ? TABS.ACTIONS : undefined);
+    const target = { ...next, ...(app ? { app } : {}), ...(tab ? { tab } : {}) };
     setRoute((prev) => {
-      const merged = { ...prev, ...next };
+      const merged = { ...prev, ...target };
       const url = new URL(window.location);
       url.searchParams.set('app', merged.app);
       url.searchParams.set('tab', merged.tab);
@@ -250,10 +262,15 @@ function MainApp({ user }) {
               </button>
             )}
 
-            {currentApp === APPS.ISSUES &&
+            {currentApp === APPS.ACTIONS &&
               !isGuest && [
                 navButton(
-                  'Hata Kartları Takip Paneli',
+                  'Aksiyonlar',
+                  TABS.ACTIONS,
+                  'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-300 shadow-xs'
+                ),
+                navButton(
+                  'Hata Kartları',
                   TABS.OPEN,
                   'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-300 shadow-xs'
                 ),
@@ -330,7 +347,12 @@ function MainApp({ user }) {
                   setCurrentIssueId(null);
                   navigate({
                     app,
-                    tab: app === APPS.ISSUE_CREATE ? TABS.DETAIL : TABS.OPEN,
+                    tab:
+                      app === APPS.ISSUE_CREATE
+                        ? TABS.DETAIL
+                        : app === APPS.ACTIONS
+                          ? TABS.ACTIONS
+                          : TABS.OPEN,
                   });
                 })
               }
@@ -354,8 +376,12 @@ function MainApp({ user }) {
           </div>
         )}
 
-        {/* MODÜL 3: HATA KARTLARI TAKİP BÖLÜMÜ (5 FİLTRELİ İZLEME PANELİ) */}
-        {currentApp === APPS.ISSUES && !isGuest && (
+        {/* AKSİYON MODÜLÜ: Aksiyonlar + Hata Kartları Takip (5 filtreli izleme paneli) + İstatistikler */}
+        {currentApp === APPS.ACTIONS && !isGuest && activeTab === TABS.ACTIONS && (
+          <ActionModule onBack={() => navigate({ app: APPS.PORTAL })} currentUser={user} />
+        )}
+
+        {currentApp === APPS.ACTIONS && !isGuest && activeTab !== TABS.ACTIONS && (
           <>
             {isListTab && (
               <div className="space-y-4 animate-fade-in">
@@ -411,9 +437,6 @@ function MainApp({ user }) {
           </>
         )}
 
-        {currentApp === APPS.ACTIONS && !isGuest && (
-          <ActionModule onBack={() => navigate({ app: APPS.PORTAL })} currentUser={user} />
-        )}
         {currentApp === APPS.AUDIT && !isGuest && (
           <AuditModule onBack={() => navigate({ app: APPS.PORTAL })} />
         )}
@@ -422,6 +445,9 @@ function MainApp({ user }) {
             onBack={() => navigate({ app: APPS.PORTAL })}
             onOpenIssue={() => navigate({ app: APPS.ISSUE_CREATE, tab: TABS.DETAIL })}
           />
+        )}
+        {currentApp === APPS.MACHINES && (
+          <MachineModule onBack={() => navigate({ app: APPS.PORTAL, tab: TABS.OPEN })} currentUser={user} />
         )}
         {currentApp === APPS.SAFETY && !isGuest && (
           <SafetyModule onBack={() => navigate({ app: APPS.PORTAL })} />

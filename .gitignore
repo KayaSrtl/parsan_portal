@@ -37,3 +37,4 @@ tunnel/
 # Dağıtım betikleri (içinde gizli dağıtım anahtarı barındırır)
 deploy.sh
 deploy.cmd
+backend/machine-docs/

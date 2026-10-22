@@ -135,6 +135,30 @@ async function createTables() {
     user_id INTEGER
   )`);
 
+  // Tezgah İzleme: her tezgahın bir yöneticisi ve dövülen parçanın PDF kayıtları vardır.
+  await run(`CREATE TABLE IF NOT EXISTS machines (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    manager_id INTEGER,
+    created_at TEXT,
+    FOREIGN KEY(manager_id) REFERENCES users(id)
+  )`);
+
+  await run(`CREATE TABLE IF NOT EXISTS machine_parts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    machine_id INTEGER NOT NULL,
+    part_name TEXT NOT NULL,
+    part_code TEXT,
+    note TEXT,
+    pdf_file TEXT NOT NULL, -- DOCS_DIR içindeki saklama adı
+    pdf_name TEXT,          -- kullanıcının yüklediği özgün ad
+    is_active INTEGER DEFAULT 1,
+    uploaded_by TEXT,
+    uploaded_by_id INTEGER,
+    created_at TEXT,
+    FOREIGN KEY(machine_id) REFERENCES machines(id) ON DELETE CASCADE
+  )`);
+
   // Tek seferlik veri dönüşümlerinin tekrar çalışmasını engelleyen anahtar/değer tablosu.
   await run(`CREATE TABLE IF NOT EXISTS app_meta (
     key TEXT PRIMARY KEY,
@@ -157,8 +181,22 @@ async function createTables() {
   await run('CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id)');
   await run('CREATE INDEX IF NOT EXISTS idx_safety_type ON safety_reports(type)');
   await run('CREATE INDEX IF NOT EXISTS idx_maintenances_tezgah ON maintenances(tezgah_no)');
+  await run('CREATE INDEX IF NOT EXISTS idx_machine_parts_machine ON machine_parts(machine_id)');
   await run('CREATE INDEX IF NOT EXISTS idx_email_logs_created ON email_logs(created_at)');
 }
+
+const DEFAULT_MACHINES = [
+  'MP2000',
+  'MPM3150',
+  'MPM6300',
+  'MPM6302',
+  'LMZ1000',
+  'MP2500',
+  'EK32',
+  'MP4000',
+  'DG25H',
+  'SMP1250',
+];
 
 // --- Migrasyonlar ------------------------------------------------------------
 
@@ -179,6 +217,18 @@ async function migrate() {
   await addColumnIfMissing('actions', 'notes', "TEXT DEFAULT '[]'");
   await addColumnIfMissing('actions', 'target_date_locked', 'INTEGER DEFAULT 0');
   await addColumnIfMissing('issues', 'hata_karti_turu', "TEXT DEFAULT 'Kırmızı Hata Kartı'");
+
+  // Tezgah listesini bir kez tohumla; sonradan eklenen/silinen tezgahlar korunur.
+  const machinesSeeded = await get("SELECT value FROM app_meta WHERE key = 'machines_seed_v1'");
+  if (!machinesSeeded) {
+    for (const name of DEFAULT_MACHINES) {
+      await run('INSERT OR IGNORE INTO machines (name, created_at) VALUES (?, ?)', [
+        name,
+        new Date().toISOString(),
+      ]);
+    }
+    await run("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('machines_seed_v1', '1')");
+  }
 
   // Mevcut kayıtların durum/tür alanlarını yeni modele uyumlu hale getir
   try {

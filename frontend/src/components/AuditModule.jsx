@@ -26,7 +26,7 @@ import {
   Trash2,
   BarChart3,
   TrendingUp,
-  Printer,
+  FileDown,
   Calendar,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -111,6 +111,8 @@ export default function AuditModule({ onBack }) {
   const [selectedPeriod, setSelectedPeriod] = useState(() => periodKey());
   const [selectedTrendArea, setSelectedTrendArea] = useState(TEZGAHLAR[0]);
   const [selectedTrendYear, setSelectedTrendYear] = useState(() => new Date().getFullYear());
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState('');
 
   const fetchAudits = async () => {
     try {
@@ -316,9 +318,27 @@ export default function AuditModule({ onBack }) {
     return Array.from(set).sort((a, b) => b - a);
   }, [audits]);
 
-  // PDF Dışa Aktarma / Yazdırma
-  const handlePrintPdf = () => {
-    window.print();
+  // PDF Dışa Aktarma: rapor, yazdırma yerine vektör PDF olarak üretilir (kütüphane ilk kullanımda yüklenir)
+  const handleExportPdf = async () => {
+    setIsExporting(true);
+    setExportError('');
+    try {
+      const { exportAuditReportPdf } = await import('../lib/auditReportPdf');
+      await exportAuditReportPdf({
+        periodLabel: periodLabelOf(selectedPeriod),
+        periodKey: selectedPeriod,
+        periodData,
+        trendArea: selectedTrendArea,
+        trendYear: selectedTrendYear,
+        trendData: yearlyTrendData,
+        preparedBy: user?.name,
+      });
+    } catch (error) {
+      console.error('PDF oluşturulamadı', error);
+      setExportError('PDF oluşturulamadı. Lütfen tekrar deneyin.');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const periodLabel = useMemo(() => periodLabelOf(selectedPeriod), [selectedPeriod]);
@@ -413,9 +433,9 @@ export default function AuditModule({ onBack }) {
   );
 
   return (
-    <div className="p-2 sm:p-4 max-w-7xl mx-auto pb-24 space-y-6 animate-fade-in print:p-0 print:bg-white print:text-black">
+    <div className="p-2 sm:p-4 max-w-7xl mx-auto pb-24 space-y-6 animate-fade-in">
       {/* Üst Menü ve Başlık */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-5 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs print:hidden">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-5 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
         <div>
           <PortalBackButton onBack={onBack} className="mb-2" />
           <h1 className="text-2xl sm:text-3xl font-black text-slate-800 dark:text-white flex items-center gap-2">
@@ -470,7 +490,7 @@ export default function AuditModule({ onBack }) {
       {activeTab === 'dashboard' && (
         <div className="space-y-6">
           {/* Dashboard Üst Kontrol Barı (Dönem Seçici ve PDF İndir) */}
-          <div className="bg-white/95 dark:bg-slate-900/95 border border-slate-200/80 dark:border-slate-800 p-4 rounded-2xl shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 print:border-b-2 print:border-black print:pb-4 print:shadow-none">
+          <div className="bg-white/95 dark:bg-slate-900/95 border border-slate-200/80 dark:border-slate-800 p-4 rounded-2xl shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
                 <Calendar className="w-4 h-4 text-teal-500" />
@@ -479,7 +499,7 @@ export default function AuditModule({ onBack }) {
               <select
                 value={selectedPeriod}
                 onChange={(e) => setSelectedPeriod(e.target.value)}
-                className="bg-teal-50 dark:bg-slate-800 border border-teal-200 dark:border-slate-700 text-xs font-black text-teal-700 dark:text-teal-300 rounded-xl px-3.5 py-2 outline-none focus:border-teal-500 cursor-pointer print:text-black print:border-black"
+                className="bg-teal-50 dark:bg-slate-800 border border-teal-200 dark:border-slate-700 text-xs font-black text-teal-700 dark:text-teal-300 rounded-xl px-3.5 py-2 outline-none focus:border-teal-500 cursor-pointer"
               >
                 {availablePeriods.map((p) => {
                   const [y, m] = p.split('-');
@@ -499,30 +519,23 @@ export default function AuditModule({ onBack }) {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={handlePrintPdf}
-                className="flex items-center justify-center gap-2 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs cursor-pointer transition-all print:hidden"
+                onClick={handleExportPdf}
+                disabled={isExporting}
+                className="flex items-center justify-center gap-2 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs cursor-pointer transition-all disabled:opacity-60"
               >
-                <Printer className="w-4 h-4" />
-                <span>Dışa Aktar / PDF Al</span>
+                <FileDown className="w-4 h-4" />
+                <span>{isExporting ? 'PDF Hazırlanıyor...' : 'Dışa Aktar / PDF Al'}</span>
               </button>
+              {exportError && <span className="text-xs font-bold text-rose-600">{exportError}</span>}
             </div>
           </div>
 
-          {/* Yazdırma Başlığı (Sadece PDF / Baskıda görünür) */}
-          <div className="hidden print:block text-center pb-4 mb-4 border-b">
-            <h1 className="text-2xl font-black">PARSAN MAKİNA PARÇALARI SANAYİİ A.Ş.</h1>
-            <h2 className="text-lg font-bold text-gray-700">5S Saha Denetim ve Performans Raporu</h2>
-            <p className="text-sm text-gray-600">
-              Dönem: {periodLabel} • Rapor Tarihi: {new Date().toLocaleDateString('tr-TR')}
-            </p>
-          </div>
-
           {/* Bölüm 1: Dönem Puanları Karşılaştırma Grafiği */}
-          <div className="bg-white/95 dark:bg-slate-900/95 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 shadow-xs space-y-4 print:bg-white print:border-gray-300">
+          <div className="bg-white/95 dark:bg-slate-900/95 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 shadow-xs space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <BarChart3 className="w-5 h-5 text-teal-500" />
-                <h3 className="font-black text-slate-800 dark:text-white text-base print:text-black">
+                <h3 className="font-black text-slate-800 dark:text-white text-base">
                   {periodLabel} Dönemi — Denetim Alanlarının Puanları
                 </h3>
               </div>
@@ -576,23 +589,23 @@ export default function AuditModule({ onBack }) {
           </div>
 
           {/* Bölüm 2: Tek Alanın 1 Yıllık Aylık İstatistik & Trend Grafiği */}
-          <div className="bg-white/95 dark:bg-slate-900/95 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 shadow-xs space-y-4 print:bg-white print:border-gray-300">
+          <div className="bg-white/95 dark:bg-slate-900/95 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 shadow-xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <TrendingUp className="w-5 h-5 text-indigo-500" />
-                <h3 className="font-black text-slate-800 dark:text-white text-base print:text-black">
+                <h3 className="font-black text-slate-800 dark:text-white text-base">
                   Tek Alanın 1 Yıl Boyunca Aylık İstatistik Grafiği ({selectedTrendArea})
                 </h3>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <label className="text-xs font-bold text-slate-600 dark:text-slate-400 print:text-black">
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-400">
                   İncelenen Alan:
                 </label>
                 <select
                   value={selectedTrendArea}
                   onChange={(e) => setSelectedTrendArea(e.target.value)}
-                  className="bg-indigo-50 dark:bg-slate-800 border border-indigo-200 dark:border-slate-700 text-xs font-black text-indigo-700 dark:text-indigo-300 rounded-xl px-3 py-1.5 outline-none focus:border-indigo-500 cursor-pointer print:text-black print:border-black"
+                  className="bg-indigo-50 dark:bg-slate-800 border border-indigo-200 dark:border-slate-700 text-xs font-black text-indigo-700 dark:text-indigo-300 rounded-xl px-3 py-1.5 outline-none focus:border-indigo-500 cursor-pointer"
                 >
                   {TEZGAHLAR.map((t) => (
                     <option key={t} value={t}>
@@ -601,13 +614,13 @@ export default function AuditModule({ onBack }) {
                   ))}
                 </select>
 
-                <label className="text-xs font-bold text-slate-600 dark:text-slate-400 print:text-black ml-1">
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-400 ml-1">
                   Yıl:
                 </label>
                 <select
                   value={selectedTrendYear}
                   onChange={(e) => setSelectedTrendYear(Number(e.target.value))}
-                  className="bg-indigo-50 dark:bg-slate-800 border border-indigo-200 dark:border-slate-700 text-xs font-black text-indigo-700 dark:text-indigo-300 rounded-xl px-3 py-1.5 outline-none focus:border-indigo-500 cursor-pointer print:text-black print:border-black"
+                  className="bg-indigo-50 dark:bg-slate-800 border border-indigo-200 dark:border-slate-700 text-xs font-black text-indigo-700 dark:text-indigo-300 rounded-xl px-3 py-1.5 outline-none focus:border-indigo-500 cursor-pointer"
                 >
                   {availableYears.map((y) => (
                     <option key={y} value={y}>
@@ -665,19 +678,19 @@ export default function AuditModule({ onBack }) {
           </div>
 
           {/* Bölüm 3: Dönem Alan Puanları Tablosu & 5S Kırılımı */}
-          <div className="bg-white/95 dark:bg-slate-900/95 border border-slate-200/80 dark:border-slate-800 rounded-3xl overflow-hidden shadow-xs print:border-gray-300">
-            <div className="p-4 bg-slate-50 dark:bg-slate-950/70 border-b border-slate-200/80 dark:border-slate-800 flex justify-between items-center print:bg-gray-100">
-              <h4 className="font-bold text-sm text-slate-800 dark:text-white print:text-black">
+          <div className="bg-white/95 dark:bg-slate-900/95 border border-slate-200/80 dark:border-slate-800 rounded-3xl overflow-hidden shadow-xs">
+            <div className="p-4 bg-slate-50 dark:bg-slate-950/70 border-b border-slate-200/80 dark:border-slate-800 flex justify-between items-center">
+              <h4 className="font-bold text-sm text-slate-800 dark:text-white">
                 {periodLabel} — Denetim Alanı Puan Tablosu ve 5S Kırılımı
               </h4>
-              <span className="text-xs text-slate-500 print:text-black">
+              <span className="text-xs text-slate-500">
                 Toplam {periodData.length} Alan
               </span>
             </div>
 
             <div className="overflow-x-auto">
               <table className="min-w-full text-xs text-left">
-                <thead className="bg-slate-100/80 dark:bg-slate-950 text-slate-600 dark:text-slate-400 uppercase tracking-wider text-[10px] print:bg-gray-200 print:text-black">
+                <thead className="bg-slate-100/80 dark:bg-slate-950 text-slate-600 dark:text-slate-400 uppercase tracking-wider text-[10px]">
                   <tr>
                     <th className="px-4 py-3">Alan / Tezgah</th>
                     <th className="px-4 py-3 text-center">1S Ayıklama</th>
@@ -685,13 +698,13 @@ export default function AuditModule({ onBack }) {
                     <th className="px-4 py-3 text-center">3S Temizlik</th>
                     <th className="px-4 py-3 text-center">4S Standart</th>
                     <th className="px-4 py-3 text-center">5S Disiplin</th>
-                    <th className="px-4 py-3 text-center font-bold text-slate-800 dark:text-white print:text-black">
+                    <th className="px-4 py-3 text-center font-bold text-slate-800 dark:text-white">
                       Toplam Skor
                     </th>
                     <th className="px-4 py-3">Denetçi</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 print:divide-gray-300">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {periodData.length === 0 && (
                     <tr>
                       <td
@@ -705,9 +718,9 @@ export default function AuditModule({ onBack }) {
                   {periodData.map((row, rIdx) => (
                     <tr
                       key={rIdx}
-                      className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors print:text-black"
+                      className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
                     >
-                      <td className="px-4 py-3 font-black text-slate-800 dark:text-white print:text-black">
+                      <td className="px-4 py-3 font-black text-slate-800 dark:text-white">
                         {row.name}
                       </td>
                       <td className="px-4 py-3 text-center text-rose-600 dark:text-rose-300 font-mono font-semibold">
@@ -738,25 +751,13 @@ export default function AuditModule({ onBack }) {
                           %{row.puan}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-slate-500 dark:text-slate-400 print:text-gray-700">
+                      <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
                         {row.auditor || '5S Denetim Ekibi'}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
-          </div>
-
-          {/* Yazdırma İmzaları (Sadece Print modunda görünür) */}
-          <div className="hidden print:grid grid-cols-2 gap-8 pt-12 mt-8 border-t text-xs">
-            <div className="text-center space-y-10">
-              <p className="font-bold">5S Saha Denetçisi</p>
-              <p className="text-gray-500">İmza / Tarih</p>
-            </div>
-            <div className="text-center space-y-10">
-              <p className="font-bold">Fabrika 5S ve TKY Yöneticisi</p>
-              <p className="text-gray-500">İmza / Kaşe</p>
             </div>
           </div>
         </div>

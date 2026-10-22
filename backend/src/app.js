@@ -11,6 +11,7 @@ const auditRoutes = require('./routes/audits.routes');
 const notificationRoutes = require('./routes/notifications.routes');
 const safetyRoutes = require('./routes/safety.routes');
 const maintenanceRoutes = require('./routes/maintenance.routes');
+const machineRoutes = require('./routes/machines.routes');
 
 const app = express();
 
@@ -39,6 +40,7 @@ app.use('/api/audits', auditRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/safety', safetyRoutes);
 app.use('/api/maintenance', maintenanceRoutes);
+app.use('/api/machines', machineRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

@@ -62,10 +62,11 @@ backend/
       auth.js             Token doğrulama + rol kontrolü
       upload.js           Multer (boyut sınırı, tip filtresi, güvenli dosya adı)
       errors.js           Merkezî JSON hata yönetimi
-    routes/               auth / users / issues / actions / audits / notifications
+    routes/               auth / users / issues / actions / audits / notifications / safety / maintenance / machines
     utils/json.js         Bozuk JSON'a dayanıklı ayrıştırma
   scripts/                Bakım komutları (aşağıya bakın)
   uploads/                Yüklenen fotoğraflar
+  machine-docs/           Tezgah parça PDF'leri (veritabanıyla aynı dizinde; herkese açık değildir)
   database.sqlite         Veritabanı
 
 frontend/
@@ -93,6 +94,16 @@ frontend/
 | `super_admin` | Tümünü görür, düzenler ve **siler** | Tanımlar, atar, siler | Ekler, düzenler, siler |
 
 Yetki kontrolleri hem arayüzde hem sunucuda yapılır; arayüzü atlayan istekler sunucuda reddedilir.
+
+**Misafir (saha operatörü):** E-postası olmayan operatörler ad-soyad yazarak giriş yapar. Hata Kartı Açma,
+Otonom Bakım ve Tezgah İzleme (salt okunur) modüllerine erişir; diğer uçlar sunucuda 403 döner.
+
+### Tezgah İzleme
+
+Her tezgaha bir yönetici atanır (admin / super_admin). Tezgah yöneticisi (ve adminler) tezgahta dövülen
+parçanın PDF'ini girer; yeni yüklenen PDF "şu an dövülen" olur, eskiler geçmişte kalır. Misafirler dahil
+herkes aktif PDF'i görüntüleyebilir. PDF'ler `/uploads` altında değil, oturum doğrulamalı
+`GET /api/machines/parts/:id/file` ucundan servis edilir. Boyut sınırı `MAX_PDF_BYTES` (varsayılan 25 MB).
 
 ---
 
@@ -211,6 +222,6 @@ Yedeklenmesi gerekenler: `backend/database.sqlite` ve `backend/uploads/`.
 ## Bilinen Sınırlar
 
 - Yüklenen fotoğraflar kayıt silindiğinde diskte kalır (temizleme işi yok).
-- `Otonom Bakım` modülü henüz yer tutucudur.
+- 5S denetim PDF'i tarayıcıda üretilir (jsPDF); ilk indirmede yazı tipi ve kütüphane yüklendiği için birkaç saniye sürebilir.
 - Aylık trend grafiğinde "Çözülen", kaydın **açıldığı** ay altında sayılır; çözülme
   tarihi ayrıca tutulmadığı için gerçek çözülme ayı bilinmiyor.

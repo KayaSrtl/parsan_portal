@@ -5,3 +5,6 @@ database.sqlite-journal
 uploads/*
 !uploads/.gitkeep
 *.log
+
+# Tezgah parça PDF'leri
+machine-docs/
