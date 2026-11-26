@@ -7,15 +7,15 @@ import {
   SlidersHorizontal,
   ChevronDown,
   ChevronUp,
+  Wrench,
+  Building2,
+  Activity,
+  Tag,
 } from 'lucide-react';
 import { calculateDelay, formatDate, getStatusColor } from '../utils/helpers';
-import {
-  DEFECT_CARD_TYPES,
-  STATUS_OPTIONS,
-  OPTION_CLASS,
-  isManager,
-} from '../lib/constants';
+import { DEFECT_CARD_TYPES, isManager } from '../lib/constants';
 import { useCatalog } from '../hooks/useCatalog';
+import CustomSelect from './ui/CustomSelect';
 
 const normalizeStatus = (raw) => {
   if (raw === 'Yeşil' || raw === 'Kapalı') return 'Kapalı';
@@ -141,8 +141,57 @@ export default function IssueList({
 
   const hasActiveFilters = Boolean(searchTerm) || activeSelectFilterCount > 0;
 
-  const filterSelectClass =
-    'w-full min-w-0 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 text-xs font-semibold text-slate-800 dark:text-white outline-none focus:border-violet-400 cursor-pointer';
+  const areaOptions = useMemo(
+    () => [
+      { value: '', label: 'Tüm Alanlar' },
+      ...machineNames.map((area) => ({ value: area, label: area })),
+    ],
+    [machineNames]
+  );
+
+  const departmentOptions = useMemo(
+    () => [
+      { value: '', label: 'Tüm Bölümler' },
+      ...departmentNames.map((dept) => ({ value: dept, label: dept })),
+    ],
+    [departmentNames]
+  );
+
+  const statusFilterOptions = useMemo(
+    () => [
+      { value: 'all', label: 'Tüm Durumlar' },
+      { value: 'Açık', label: 'Açık', dotClass: 'bg-rose-500' },
+      { value: 'Beklemede', label: 'Beklemede', dotClass: 'bg-amber-500' },
+      { value: 'Kapalı', label: 'Kapalı', dotClass: 'bg-emerald-500' },
+    ],
+    []
+  );
+
+  const inlineStatusOptions = useMemo(
+    () => [
+      { value: 'Açık', label: 'Açık', dotClass: 'bg-rose-500' },
+      { value: 'Beklemede', label: 'Beklemede', dotClass: 'bg-amber-500' },
+      { value: 'Kapalı', label: 'Kapalı', dotClass: 'bg-emerald-500' },
+    ],
+    []
+  );
+
+  const cardTypeOptions = useMemo(
+    () => [
+      { value: 'all', label: 'Tüm Kart Türleri' },
+      {
+        value: DEFECT_CARD_TYPES.RED,
+        label: 'Kırmızı Hata Kartı',
+        dotClass: 'bg-rose-500',
+      },
+      {
+        value: DEFECT_CARD_TYPES.YELLOW,
+        label: 'Sarı Hata Kartı',
+        dotClass: 'bg-amber-400',
+      },
+    ],
+    []
+  );
 
   return (
     <div className="space-y-4 sm:space-y-5 animate-fade-in">
@@ -261,20 +310,16 @@ export default function IssueList({
             <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1 truncate">
               Alan (Tezgah)
             </label>
-            <select
+            <CustomSelect
               value={selectedArea}
-              onChange={(e) => setSelectedArea(e.target.value)}
-              className={filterSelectClass}
-            >
-              <option value="" className={OPTION_CLASS}>
-                Tüm Alanlar
-              </option>
-              {machineNames.map((area) => (
-                <option key={area} value={area} className={OPTION_CLASS}>
-                  {area}
-                </option>
-              ))}
-            </select>
+              onChange={setSelectedArea}
+              options={areaOptions}
+              icon={Wrench}
+              isActive={Boolean(selectedArea)}
+              searchable={machineNames.length > 6}
+              searchPlaceholder="Tezgah ara..."
+              ariaLabel="Alan (Tezgah) filtresi"
+            />
           </div>
 
           {/* 2. Bildiren Bölüm Bazlı */}
@@ -282,20 +327,16 @@ export default function IssueList({
             <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1 truncate">
               Bildiren Bölüm
             </label>
-            <select
+            <CustomSelect
               value={selectedBildirenBolum}
-              onChange={(e) => setSelectedBildirenBolum(e.target.value)}
-              className={filterSelectClass}
-            >
-              <option value="" className={OPTION_CLASS}>
-                Tüm Bölümler
-              </option>
-              {departmentNames.map((dept) => (
-                <option key={dept} value={dept} className={OPTION_CLASS}>
-                  {dept}
-                </option>
-              ))}
-            </select>
+              onChange={setSelectedBildirenBolum}
+              options={departmentOptions}
+              icon={Building2}
+              isActive={Boolean(selectedBildirenBolum)}
+              searchable={departmentNames.length > 6}
+              searchPlaceholder="Bölüm ara..."
+              ariaLabel="Bildiren bölüm filtresi"
+            />
           </div>
 
           {/* 3. İlgili Bölüm Bazlı */}
@@ -303,20 +344,16 @@ export default function IssueList({
             <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1 truncate">
               İlgili Bölüm
             </label>
-            <select
+            <CustomSelect
               value={selectedIlgiliBolum}
-              onChange={(e) => setSelectedIlgiliBolum(e.target.value)}
-              className={filterSelectClass}
-            >
-              <option value="" className={OPTION_CLASS}>
-                Tüm Bölümler
-              </option>
-              {departmentNames.map((dept) => (
-                <option key={dept} value={dept} className={OPTION_CLASS}>
-                  {dept}
-                </option>
-              ))}
-            </select>
+              onChange={setSelectedIlgiliBolum}
+              options={departmentOptions}
+              icon={Building2}
+              isActive={Boolean(selectedIlgiliBolum)}
+              searchable={departmentNames.length > 6}
+              searchPlaceholder="Bölüm ara..."
+              ariaLabel="İlgili bölüm filtresi"
+            />
           </div>
 
           {/* 4. Mevcut Durum Bazlı */}
@@ -324,24 +361,14 @@ export default function IssueList({
             <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1 truncate">
               Mevcut Durum
             </label>
-            <select
+            <CustomSelect
               value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className={filterSelectClass}
-            >
-              <option value="all" className={OPTION_CLASS}>
-                Tüm Durumlar
-              </option>
-              <option value="Açık" className={OPTION_CLASS}>
-                ⏳ Açık
-              </option>
-              <option value="Beklemede" className={OPTION_CLASS}>
-                ⏸️ Beklemede
-              </option>
-              <option value="Kapalı" className={OPTION_CLASS}>
-                ✅ Kapalı
-              </option>
-            </select>
+              onChange={setSelectedStatus}
+              options={statusFilterOptions}
+              icon={Activity}
+              isActive={selectedStatus !== 'all'}
+              ariaLabel="Mevcut durum filtresi"
+            />
           </div>
 
           {/* 5. Hata Kartı Türü Bazlı */}
@@ -349,21 +376,14 @@ export default function IssueList({
             <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1 truncate">
               Hata Kartı Türü
             </label>
-            <select
+            <CustomSelect
               value={selectedCardType}
-              onChange={(e) => setSelectedCardType(e.target.value)}
-              className={filterSelectClass}
-            >
-              <option value="all" className={OPTION_CLASS}>
-                Tüm Kart Türleri
-              </option>
-              <option value={DEFECT_CARD_TYPES.RED} className={OPTION_CLASS}>
-                🔴 Kırmızı Hata Kartı
-              </option>
-              <option value={DEFECT_CARD_TYPES.YELLOW} className={OPTION_CLASS}>
-                🟡 Sarı Hata Kartı
-              </option>
-            </select>
+              onChange={setSelectedCardType}
+              options={cardTypeOptions}
+              icon={Tag}
+              isActive={selectedCardType !== 'all'}
+              ariaLabel="Hata kartı türü filtresi"
+            />
           </div>
         </div>
 
@@ -520,17 +540,15 @@ export default function IssueList({
                         }}
                       >
                         {onQuickStatusChange && editable ? (
-                          <select
+                          <CustomSelect
+                            variant="pill"
                             value={status}
-                            onChange={(e) => onQuickStatusChange(issue.id, e.target.value)}
-                            className={`text-[11px] font-bold px-2.5 py-1 rounded-full cursor-pointer outline-none ${getStatusColor(status)}`}
-                          >
-                            {STATUS_OPTIONS.map((opt) => (
-                              <option key={opt.value} value={opt.value} className={OPTION_CLASS}>
-                                {opt.label}
-                              </option>
-                            ))}
-                          </select>
+                            onChange={(val) => onQuickStatusChange(issue.id, val)}
+                            options={inlineStatusOptions}
+                            triggerClassName={getStatusColor(status)}
+                            menuMinWidth={152}
+                            ariaLabel={`Hata kartı #${issue.id} durumu`}
+                          />
                         ) : (
                           <span
                             className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${getStatusColor(status)}`}
