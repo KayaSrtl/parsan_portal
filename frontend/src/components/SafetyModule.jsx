@@ -12,13 +12,15 @@ import {
   X,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { AREAS, DEPARTMENTS, SAFETY_LEVELS, OPTION_CLASS } from '../lib/constants';
+import { useCatalog } from '../hooks/useCatalog';
+import { SAFETY_LEVELS, OPTION_CLASS } from '../lib/constants';
 import { apiFetch, fileUrl, toFormData } from '../lib/api';
 import { formatDateTime } from '../utils/helpers';
 import PortalBackButton from './ui/PortalBackButton';
 
 export default function SafetyModule({ onBack }) {
   const { user } = useAuth();
+  const { machineNames, departmentNames } = useCatalog();
   // Modül doğrudan 2 ana bölüme ayrılmıştır: 'Risk Bildirimi' ve 'Ramak Kala'
   const [activeCategory, setActiveCategory] = useState('Risk Bildirimi'); // 'Risk Bildirimi' | 'Ramak Kala'
   const [showNewForm, setShowNewForm] = useState(false);
@@ -256,39 +258,39 @@ export default function SafetyModule({ onBack }) {
       {/* =========================================================================
           İKİ ANA BÖLÜM SEÇİCİSİ: 1) RİSK BİLDİRİMİ  |  2) RAMAK KALA
           ========================================================================= */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="flex sm:grid sm:grid-cols-2 gap-3 sm:gap-4 overflow-x-auto no-scrollbar pb-1 sm:pb-0">
         <button
           type="button"
           onClick={() => setActiveCategory('Risk Bildirimi')}
-          className={`p-5 rounded-3xl border-2 text-left transition-all cursor-pointer flex items-center justify-between ${
+          className={`min-w-[270px] sm:min-w-0 shrink-0 sm:shrink p-4 sm:p-5 rounded-3xl border-2 text-left transition-all cursor-pointer flex items-center justify-between gap-3 ${
             isRiskTab
               ? 'bg-amber-50/90 dark:bg-amber-950/30 border-amber-400 dark:border-amber-500/60 shadow-md ring-2 ring-amber-400/20'
               : 'bg-white/85 dark:bg-slate-900/80 border-slate-200/80 dark:border-slate-800 hover:border-amber-300'
           }`}
         >
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 sm:gap-4 min-w-0">
             <div
-              className={`w-12 h-12 rounded-2xl flex items-center justify-center border ${
+              className={`w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-2xl flex items-center justify-center border ${
                 isRiskTab
                   ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
                   : 'bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800/60'
               }`}
             >
-              <AlertOctagon className="w-6 h-6" />
+              <AlertOctagon className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
-            <div>
+            <div className="min-w-0">
               <span className="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 block">
                 1. BÖLÜM
               </span>
-              <h2 className="text-lg sm:text-xl font-black text-slate-800 dark:text-white">
+              <h2 className="text-base sm:text-xl font-black text-slate-800 dark:text-white truncate">
                 ⚠️ Risk Bildirimi
               </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">
                 Sahadaki güvensiz durumlar, ekipman ve çevre tehlikeleri
               </p>
             </div>
           </div>
-          <div className="text-right">
+          <div className="text-right shrink-0">
             <span className="text-2xl font-black text-amber-600 dark:text-amber-400">
               {stats.risk}
             </span>
@@ -299,35 +301,35 @@ export default function SafetyModule({ onBack }) {
         <button
           type="button"
           onClick={() => setActiveCategory('Ramak Kala')}
-          className={`p-5 rounded-3xl border-2 text-left transition-all cursor-pointer flex items-center justify-between ${
+          className={`min-w-[270px] sm:min-w-0 shrink-0 sm:shrink p-4 sm:p-5 rounded-3xl border-2 text-left transition-all cursor-pointer flex items-center justify-between gap-3 ${
             !isRiskTab
               ? 'bg-rose-50/90 dark:bg-rose-950/30 border-rose-400 dark:border-rose-500/60 shadow-md ring-2 ring-rose-400/20'
               : 'bg-white/85 dark:bg-slate-900/80 border-slate-200/80 dark:border-slate-800 hover:border-rose-300'
           }`}
         >
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 sm:gap-4 min-w-0">
             <div
-              className={`w-12 h-12 rounded-2xl flex items-center justify-center border ${
+              className={`w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-2xl flex items-center justify-center border ${
                 !isRiskTab
                   ? 'bg-rose-500 text-white border-rose-600 shadow-xs'
                   : 'bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800/60'
               }`}
             >
-              <Flame className="w-6 h-6" />
+              <Flame className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
-            <div>
+            <div className="min-w-0">
               <span className="text-[10px] font-black uppercase tracking-widest text-rose-600 dark:text-rose-400 block">
                 2. BÖLÜM
               </span>
-              <h2 className="text-lg sm:text-xl font-black text-slate-800 dark:text-white">
+              <h2 className="text-base sm:text-xl font-black text-slate-800 dark:text-white truncate">
                 ⚡ Ramak Kala Bildirimi
               </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">
                 Yaralanma veya hasar doğurmadan kıl payı atlatılan olaylar
               </p>
             </div>
           </div>
-          <div className="text-right">
+          <div className="text-right shrink-0">
             <span className="text-2xl font-black text-rose-600 dark:text-rose-400">
               {stats.nearMiss}
             </span>
@@ -347,7 +349,7 @@ export default function SafetyModule({ onBack }) {
           ========================================================================= */}
       {showNewForm && (
         <div className="bg-white/95 dark:bg-slate-900/95 border border-slate-200/80 dark:border-slate-800 p-6 sm:p-8 rounded-3xl shadow-md space-y-6 animate-fade-in">
-          <div className="border-b border-slate-100 dark:border-slate-800 pb-4 flex items-center justify-between">
+          <div className="border-b border-slate-100 dark:border-slate-800 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-lg sm:text-xl font-black text-slate-800 dark:text-white flex items-center gap-2">
                 {isRiskTab ? (
@@ -361,11 +363,11 @@ export default function SafetyModule({ onBack }) {
                 Lütfen sahada gözlemlediğiniz durumu ve önerdiğiniz önlemi aşağıya giriniz.
               </p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex overflow-x-auto whitespace-nowrap no-scrollbar gap-2">
               <button
                 type="button"
                 onClick={() => setActiveCategory('Risk Bildirimi')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold border cursor-pointer ${
+                className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold border cursor-pointer ${
                   isRiskTab
                     ? 'bg-amber-100 text-amber-800 border-amber-300'
                     : 'bg-slate-100 text-slate-500 border-slate-200'
@@ -376,7 +378,7 @@ export default function SafetyModule({ onBack }) {
               <button
                 type="button"
                 onClick={() => setActiveCategory('Ramak Kala')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold border cursor-pointer ${
+                className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold border cursor-pointer ${
                   !isRiskTab
                     ? 'bg-rose-100 text-rose-800 border-rose-300'
                     : 'bg-slate-100 text-slate-500 border-slate-200'
@@ -402,7 +404,7 @@ export default function SafetyModule({ onBack }) {
                   <option value="" disabled className={OPTION_CLASS}>
                     Alan Seçin...
                   </option>
-                  {AREAS.map((a) => (
+                  {machineNames.map((a) => (
                     <option key={a} value={a} className={OPTION_CLASS}>
                       {a}
                     </option>
@@ -422,7 +424,7 @@ export default function SafetyModule({ onBack }) {
                   <option value="" className={OPTION_CLASS}>
                     Bölüm Seçin...
                   </option>
-                  {DEPARTMENTS.map((d) => (
+                  {departmentNames.map((d) => (
                     <option key={d} value={d} className={OPTION_CLASS}>
                       {d}
                     </option>
@@ -550,8 +552,8 @@ export default function SafetyModule({ onBack }) {
           SEÇİLİ BÖLÜMÜN LİSTESİ VE FİLTRELERİ
           ========================================================================= */}
       <div className="space-y-4">
-        <div className="bg-white/90 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800 p-3.5 rounded-2xl flex flex-wrap items-center gap-3 shadow-xs">
-          <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 font-bold">
+        <div className="bg-white/90 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800 p-3.5 rounded-2xl flex items-center gap-2.5 overflow-x-auto whitespace-nowrap no-scrollbar shadow-xs">
+          <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 font-bold shrink-0">
             <Filter className="w-4 h-4 text-amber-500" />
             <span>{activeCategory} Filtreleri:</span>
           </div>
@@ -559,7 +561,7 @@ export default function SafetyModule({ onBack }) {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-700 dark:text-white rounded-xl px-3 py-2 outline-none focus:border-amber-500 cursor-pointer font-semibold"
+            className="shrink-0 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-700 dark:text-white rounded-xl px-3 py-2 outline-none focus:border-amber-500 cursor-pointer font-semibold"
           >
             <option value="all" className={OPTION_CLASS}>
               Tüm Durumlar
@@ -578,12 +580,12 @@ export default function SafetyModule({ onBack }) {
           <select
             value={areaFilter}
             onChange={(e) => setAreaFilter(e.target.value)}
-            className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-700 dark:text-white rounded-xl px-3 py-2 outline-none focus:border-amber-500 cursor-pointer font-semibold"
+            className="shrink-0 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-700 dark:text-white rounded-xl px-3 py-2 outline-none focus:border-amber-500 cursor-pointer font-semibold"
           >
             <option value="" className={OPTION_CLASS}>
               Tüm Alanlar
             </option>
-            {AREAS.map((a) => (
+            {machineNames.map((a) => (
               <option key={a} value={a} className={OPTION_CLASS}>
                 {a}
               </option>
@@ -597,7 +599,7 @@ export default function SafetyModule({ onBack }) {
                 setStatusFilter('all');
                 setAreaFilter('');
               }}
-              className="text-xs text-amber-600 dark:text-amber-400 hover:underline font-bold ml-auto cursor-pointer"
+              className="shrink-0 text-xs text-amber-600 dark:text-amber-400 hover:underline font-bold ml-auto cursor-pointer"
             >
               Filtreyi Temizle
             </button>

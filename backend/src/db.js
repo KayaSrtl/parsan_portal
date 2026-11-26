@@ -144,6 +144,13 @@ async function createTables() {
     FOREIGN KEY(manager_id) REFERENCES users(id)
   )`);
 
+  // Bölüm kataloğu: tüm modül formları ve filtreler buradan beslenir.
+  await run(`CREATE TABLE IF NOT EXISTS departments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    created_at TEXT
+  )`);
+
   await run(`CREATE TABLE IF NOT EXISTS machine_parts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     machine_id INTEGER NOT NULL,
@@ -198,6 +205,15 @@ const DEFAULT_MACHINES = [
   'SMP1250',
 ];
 
+const DEFAULT_DEPARTMENTS = [
+  'Dövme',
+  'Isıl İşlem',
+  'Sevkiyat',
+  'Tamamlama',
+  'Kalıp',
+  'Kalite Kontrol',
+];
+
 // --- Migrasyonlar ------------------------------------------------------------
 
 async function addColumnIfMissing(table, column, definition) {
@@ -228,6 +244,20 @@ async function migrate() {
       ]);
     }
     await run("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('machines_seed_v1', '1')");
+  }
+
+  // Bölüm listesini bir kez tohumla; sonradan eklenen/silinen bölümler korunur.
+  const departmentsSeeded = await get(
+    "SELECT value FROM app_meta WHERE key = 'departments_seed_v1'"
+  );
+  if (!departmentsSeeded) {
+    for (const name of DEFAULT_DEPARTMENTS) {
+      await run('INSERT OR IGNORE INTO departments (name, created_at) VALUES (?, ?)', [
+        name,
+        new Date().toISOString(),
+      ]);
+    }
+    await run("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('departments_seed_v1', '1')");
   }
 
   // Mevcut kayıtların durum/tür alanlarını yeni modele uyumlu hale getir

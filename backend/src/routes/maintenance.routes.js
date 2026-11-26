@@ -32,9 +32,12 @@ router.post(
     }
 
     // 1. Madde: Hava basınç barası 3-5 bar aralığında olmalı ve fotoğrafı zorunlu.
-    const pressure = Number(String(data.item1_val ?? '').replace(',', '.'));
-    if (!Number.isFinite(pressure)) {
-      return res.status(400).json({ error: 'Hava basınç değeri (bar) sayısal olmalıdır' });
+    const rawPressure = String(data.item1_val ?? '').trim();
+    const pressure = Number(rawPressure.replace(',', '.'));
+    if (rawPressure === '' || !Number.isFinite(pressure)) {
+      return res.status(400).json({
+        error: '1. Madde için manometre basınç değeri (bar) zorunludur ve sayısal olmalıdır',
+      });
     }
     const pressureOk = pressure >= PRESSURE_MIN && pressure <= PRESSURE_MAX;
 

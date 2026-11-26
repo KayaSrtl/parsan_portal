@@ -30,6 +30,7 @@ import {
   Calendar,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useCatalog } from '../hooks/useCatalog';
 import { apiFetch } from '../lib/api';
 import PortalBackButton from './ui/PortalBackButton';
 
@@ -65,25 +66,6 @@ const QUESTIONS = {
   ],
 };
 
-const TEZGAHLAR = [
-  'Dövme',
-  'Isıl İşlem',
-  'Sevkiyat',
-  'Tamamlama',
-  'Kalıp',
-  'Kalite Kontrol',
-  'MP2000',
-  'MPM3150',
-  'MPM6300',
-  'MPM6302',
-  'LMZ1000',
-  'MP2500',
-  'EK32',
-  'MP4000',
-  'DG25H',
-  'SMP1250',
-];
-
 const MONTH_NAMES = [
   'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
   'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
@@ -98,6 +80,22 @@ const periodLabelOf = (period) => {
 
 export default function AuditModule({ onBack }) {
   const { user } = useAuth();
+  const { departmentNames, machineNames } = useCatalog();
+  const auditAreas = useMemo(() => {
+    const unique = [];
+    const seen = new Set();
+    [...departmentNames, ...machineNames].forEach((item) => {
+      const name = String(item || '').trim();
+      if (!name) return;
+      const key = name.toLocaleLowerCase('tr-TR');
+      if (!seen.has(key)) {
+        seen.add(key);
+        unique.push(name);
+      }
+    });
+    return unique;
+  }, [departmentNames, machineNames]);
+
   const [selectedTezgah, setSelectedTezgah] = useState('');
   const [answers, setAnswers] = useState({});
   const [audits, setAudits] = useState([]);
@@ -109,10 +107,15 @@ export default function AuditModule({ onBack }) {
 
   // Dashboard Filtreleri (varsayılan: içinde bulunulan ay)
   const [selectedPeriod, setSelectedPeriod] = useState(() => periodKey());
-  const [selectedTrendArea, setSelectedTrendArea] = useState(TEZGAHLAR[0]);
+  const [selectedTrendArea, setSelectedTrendArea] = useState('');
   const [selectedTrendYear, setSelectedTrendYear] = useState(() => new Date().getFullYear());
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState('');
+
+  const activeTrendArea =
+    selectedTrendArea && auditAreas.includes(selectedTrendArea)
+      ? selectedTrendArea
+      : auditAreas[0] || '';
 
   const fetchAudits = async () => {
     try {
@@ -289,7 +292,7 @@ export default function AuditModule({ onBack }) {
   const yearlyTrendData = useMemo(() => {
     const areaAudits = audits.filter(
       (a) =>
-        a.tezgah_no === selectedTrendArea &&
+        a.tezgah_no === activeTrendArea &&
         String(a.date || '').startsWith(String(selectedTrendYear))
     );
 
@@ -306,7 +309,7 @@ export default function AuditModule({ onBack }) {
         hedef: 85,
       };
     });
-  }, [audits, selectedTrendArea, selectedTrendYear]);
+  }, [audits, activeTrendArea, selectedTrendYear]);
 
   // Trend grafiği için seçilebilir yıllar
   const availableYears = useMemo(() => {
@@ -328,7 +331,7 @@ export default function AuditModule({ onBack }) {
         periodLabel: periodLabelOf(selectedPeriod),
         periodKey: selectedPeriod,
         periodData,
-        trendArea: selectedTrendArea,
+        trendArea: activeTrendArea,
         trendYear: selectedTrendYear,
         trendData: yearlyTrendData,
         preparedBy: user?.name,
@@ -447,10 +450,10 @@ export default function AuditModule({ onBack }) {
           </p>
         </div>
 
-        <div className="flex bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-1 w-full sm:w-auto gap-1">
+        <div className="flex overflow-x-auto whitespace-nowrap no-scrollbar bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-1 w-full sm:w-auto gap-1">
           <button
             type="button"
-            className={`flex-1 sm:flex-none px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+            className={`shrink-0 flex-1 sm:flex-none px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
               activeTab === 'dashboard'
                 ? 'bg-white dark:bg-slate-900 text-teal-600 dark:text-teal-300 shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
@@ -461,7 +464,7 @@ export default function AuditModule({ onBack }) {
           </button>
           <button
             type="button"
-            className={`flex-1 sm:flex-none px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+            className={`shrink-0 flex-1 sm:flex-none px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
               activeTab === 'new'
                 ? 'bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-300 shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
@@ -472,7 +475,7 @@ export default function AuditModule({ onBack }) {
           </button>
           <button
             type="button"
-            className={`flex-1 sm:flex-none px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+            className={`shrink-0 flex-1 sm:flex-none px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
               activeTab === 'history'
                 ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-300 shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
@@ -531,21 +534,21 @@ export default function AuditModule({ onBack }) {
           </div>
 
           {/* Bölüm 1: Dönem Puanları Karşılaştırma Grafiği */}
-          <div className="bg-white/95 dark:bg-slate-900/95 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 shadow-xs space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-teal-500" />
-                <h3 className="font-black text-slate-800 dark:text-white text-base">
+          <div className="bg-white/95 dark:bg-slate-900/95 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xs space-y-4 min-w-0 overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <BarChart3 className="w-5 h-5 text-teal-500 shrink-0" />
+                <h3 className="font-black text-slate-800 dark:text-white text-sm sm:text-base">
                   {periodLabel} Dönemi — Denetim Alanlarının Puanları
                 </h3>
               </div>
-              <span className="text-xs text-teal-600 dark:text-teal-400 font-bold bg-teal-50 dark:bg-teal-950/50 px-3 py-1 rounded-full border border-teal-200 dark:border-teal-800">
+              <span className="text-xs text-teal-600 dark:text-teal-400 font-bold bg-teal-50 dark:bg-teal-950/50 px-3 py-1 rounded-full border border-teal-200 dark:border-teal-800 shrink-0">
                 Hedef Skor: %85
               </span>
             </div>
 
             {periodData.length === 0 ? (
-              <div className="h-40 flex flex-col items-center justify-center text-center text-slate-500 dark:text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
+              <div className="h-40 flex flex-col items-center justify-center text-center text-slate-500 dark:text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl p-4">
                 <BarChart3 className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2" />
                 <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
                   {periodLabel} döneminde kayıtlı denetim bulunmuyor.
@@ -555,7 +558,7 @@ export default function AuditModule({ onBack }) {
                 </p>
               </div>
             ) : (
-              <div className="h-64 sm:h-72 w-full">
+              <div className="h-64 sm:h-72 w-full min-w-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={periodData} margin={{ top: 10, right: 10, left: -20, bottom: 25 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -589,12 +592,12 @@ export default function AuditModule({ onBack }) {
           </div>
 
           {/* Bölüm 2: Tek Alanın 1 Yıllık Aylık İstatistik & Trend Grafiği */}
-          <div className="bg-white/95 dark:bg-slate-900/95 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 shadow-xs space-y-4">
+          <div className="bg-white/95 dark:bg-slate-900/95 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xs space-y-4 min-w-0 overflow-hidden">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-indigo-500" />
-                <h3 className="font-black text-slate-800 dark:text-white text-base">
-                  Tek Alanın 1 Yıl Boyunca Aylık İstatistik Grafiği ({selectedTrendArea})
+              <div className="flex items-center gap-2 min-w-0">
+                <TrendingUp className="w-5 h-5 text-indigo-500 shrink-0" />
+                <h3 className="font-black text-slate-800 dark:text-white text-sm sm:text-base">
+                  Tek Alanın 1 Yıl Boyunca Aylık İstatistik Grafiği ({activeTrendArea})
                 </h3>
               </div>
 
@@ -603,11 +606,11 @@ export default function AuditModule({ onBack }) {
                   İncelenen Alan:
                 </label>
                 <select
-                  value={selectedTrendArea}
+                  value={activeTrendArea}
                   onChange={(e) => setSelectedTrendArea(e.target.value)}
                   className="bg-indigo-50 dark:bg-slate-800 border border-indigo-200 dark:border-slate-700 text-xs font-black text-indigo-700 dark:text-indigo-300 rounded-xl px-3 py-1.5 outline-none focus:border-indigo-500 cursor-pointer"
                 >
-                  {TEZGAHLAR.map((t) => (
+                  {auditAreas.map((t) => (
                     <option key={t} value={t}>
                       {t}
                     </option>
@@ -631,7 +634,7 @@ export default function AuditModule({ onBack }) {
               </div>
             </div>
 
-            <div className="h-64 sm:h-72 w-full">
+            <div className="h-64 sm:h-72 w-full min-w-0">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={yearlyTrendData} margin={{ top: 10, right: 15, left: -20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -650,7 +653,7 @@ export default function AuditModule({ onBack }) {
                   <Line
                     type="monotone"
                     dataKey="skor"
-                    name={`${selectedTrendArea} Aylık Denetim Puanı (%)`}
+                    name={`${activeTrendArea} Aylık Denetim Puanı (%)`}
                     stroke="#6366f1"
                     strokeWidth={3}
                     dot={{ r: 4, fill: '#6366f1' }}
@@ -671,7 +674,7 @@ export default function AuditModule({ onBack }) {
             </div>
             {yearlyTrendData.every((d) => d.skor === null) && (
               <p className="text-xs text-center text-slate-500 dark:text-slate-400">
-                {selectedTrendYear} yılında <b>{selectedTrendArea}</b> alanı için kayıtlı denetim
+                {selectedTrendYear} yılında <b>{activeTrendArea}</b> alanı için kayıtlı denetim
                 bulunmuyor.
               </p>
             )}
@@ -781,7 +784,7 @@ export default function AuditModule({ onBack }) {
                 <option value="" disabled>
                   Seçiniz...
                 </option>
-                {TEZGAHLAR.map((t) => (
+                {auditAreas.map((t) => (
                   <option key={t} value={t}>
                     {t}
                   </option>

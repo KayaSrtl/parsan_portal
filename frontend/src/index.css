@@ -19,6 +19,13 @@
   --pastel-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px -12px rgba(15, 23, 42, 0.12);
 }
 
+html,
+body {
+  overflow-x: clip;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
 body {
   margin: 0;
   background-color: #f4f7fb;
@@ -84,6 +91,16 @@ html.dark ::selection {
 *::-webkit-scrollbar-thumb:hover {
   background: rgba(100, 116, 139, 0.65);
   background-clip: content-box;
+}
+
+/* Yatay slide menüler için kaydırma çubuğunu gizle */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 /* Pastel kart yüzeyi: hafif yükselti + yumuşak kenar */

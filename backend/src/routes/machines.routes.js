@@ -114,6 +114,29 @@ router.post(
   })
 );
 
+router.put(
+  '/:id',
+  requireRole(...MANAGER_ROLES),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const name = String(req.body?.name || '').trim().slice(0, 40);
+    if (!name) return res.status(400).json({ error: 'Tezgah adı zorunludur' });
+
+    const machine = await get('SELECT id, name FROM machines WHERE id = ?', [id]);
+    if (!machine) return res.status(404).json({ error: 'Tezgah bulunamadı' });
+
+    const normalized = name.toLocaleLowerCase('tr-TR');
+    const others = await all('SELECT id, name FROM machines WHERE id != ?', [id]);
+    const duplicate = others.find(
+      (m) => String(m.name || '').toLocaleLowerCase('tr-TR') === normalized
+    );
+    if (duplicate) return res.status(409).json({ error: 'Bu tezgah adı zaten tanımlı' });
+
+    await run('UPDATE machines SET name = ? WHERE id = ?', [name, id]);
+    res.json({ id, name, message: 'Tezgah güncellendi' });
+  })
+);
+
 // Tezgaha yönetici ata (manager_id boş/null ise atama kaldırılır).
 router.put(
   '/:id/manager',
@@ -155,7 +178,7 @@ router.put(
 
 router.delete(
   '/:id',
-  requireRole(ROLES.SUPER_ADMIN),
+  requireRole(...MANAGER_ROLES),
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     const parts = await all('SELECT pdf_file FROM machine_parts WHERE machine_id = ?', [id]);

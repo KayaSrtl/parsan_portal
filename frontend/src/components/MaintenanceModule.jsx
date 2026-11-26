@@ -13,13 +13,15 @@ import {
   Check,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { AREAS, SHIFTS, OPTION_CLASS } from '../lib/constants';
+import { useCatalog } from '../hooks/useCatalog';
+import { SHIFTS, OPTION_CLASS } from '../lib/constants';
 import { apiFetch, fileUrl } from '../lib/api';
 import { formatDateTime } from '../utils/helpers';
 import PortalBackButton from './ui/PortalBackButton';
 
 export default function MaintenanceModule({ onBack }) {
   const { user } = useAuth();
+  const { machineNames } = useCatalog();
   const [activeTab, setActiveTab] = useState('form'); // 'form' | 'history'
   const [historyList, setHistoryList] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -32,8 +34,8 @@ export default function MaintenanceModule({ onBack }) {
   const [vardiya, setVardiya] = useState(SHIFTS[0]);
 
   // Madde 1: Hava Basınç Barası (3-5 bar arası) - Fotoğraf zorunlu
-  const [item1Val, setItem1Val] = useState('4.0');
-  const [item1Status, setItem1Status] = useState('Uygun');
+  const [item1Val, setItem1Val] = useState('');
+  const [item1Status, setItem1Status] = useState('');
   const [item1File, setItem1File] = useState(null);
   const [item1Preview, setItem1Preview] = useState(null);
 
@@ -72,14 +74,18 @@ export default function MaintenanceModule({ onBack }) {
 
   const handlePressureChange = (val) => {
     setItem1Val(val);
-    const num = parseFloat(val);
-    if (!Number.isNaN(num)) {
-      if (num >= 3.0 && num <= 5.0) {
-        setItem1Status('Uygun');
-      } else {
-        setItem1Status('Uygun Değil');
-      }
+    const trimmed = String(val ?? '').trim();
+    if (!trimmed) {
+      setItem1Status('');
+      return;
     }
+    const num = parseFloat(trimmed.replace(',', '.'));
+    if (Number.isNaN(num)) {
+      setItem1Status('');
+      return;
+    }
+    setItem1Status(num >= 3.0 && num <= 5.0 ? 'Uygun' : 'Uygun Değil');
+    setErrorMsg('');
   };
 
   const handleImage1Change = (e) => {
@@ -107,6 +113,12 @@ export default function MaintenanceModule({ onBack }) {
       setErrorMsg('Lütfen kontrol edilen tezgah / makineyi seçiniz.');
       return;
     }
+    const trimmedPressure = String(item1Val ?? '').trim();
+    const parsedPressure = parseFloat(trimmedPressure.replace(',', '.'));
+    if (!trimmedPressure || Number.isNaN(parsedPressure)) {
+      setErrorMsg('1. Madde için manometreden okunan hava basınç değerini (Bar) giriniz!');
+      return;
+    }
     if (!item1File && !item1Preview) {
       setErrorMsg('1. Madde (Hava Basınç Barası 3-5 bar) için fotoğraf yüklenmesi zorunludur!');
       return;
@@ -116,14 +128,17 @@ export default function MaintenanceModule({ onBack }) {
       return;
     }
 
+    const computedItem1Status =
+      parsedPressure >= 3.0 && parsedPressure <= 5.0 ? 'Uygun' : 'Uygun Değil';
+
     setIsSubmitting(true);
     setFeedback('');
 
     const payload = {
       tezgah_no: tezgah,
       vardiya,
-      item1_val: item1Val,
-      item1_status: item1Status,
+      item1_val: trimmedPressure.replace(',', '.'),
+      item1_status: computedItem1Status,
       item2_status: item2Status,
       item2_note: item2Note.trim(),
       item3_status: item3Status,
@@ -157,8 +172,8 @@ export default function MaintenanceModule({ onBack }) {
         vardiya,
         operator_name: user?.name || 'Saha Operatörü',
         tarih: new Date().toISOString(),
-        item1_val: item1Val,
-        item1_status: item1Status,
+        item1_val: payload.item1_val,
+        item1_status: payload.item1_status,
         item1_foto: item1Preview,
         item2_status: item2Status,
         item2_note: item2Note.trim(),
@@ -184,8 +199,8 @@ export default function MaintenanceModule({ onBack }) {
 
   const resetForm = () => {
     setTezgah('');
-    setItem1Val('4.0');
-    setItem1Status('Uygun');
+    setItem1Val('');
+    setItem1Status('');
     setItem1File(null);
     setItem1Preview(null);
     setItem2Status('Kaçak Yok');
@@ -210,11 +225,11 @@ export default function MaintenanceModule({ onBack }) {
           </p>
         </div>
 
-        <div className="flex bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-1 rounded-2xl gap-1 w-full sm:w-auto">
+        <div className="flex overflow-x-auto whitespace-nowrap no-scrollbar bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-1 rounded-2xl gap-1 w-full sm:w-auto">
           <button
             type="button"
             onClick={() => setActiveTab('form')}
-            className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            className={`shrink-0 flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'form'
                 ? 'bg-white dark:bg-slate-900 text-sky-600 dark:text-sky-300 shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
@@ -225,7 +240,7 @@ export default function MaintenanceModule({ onBack }) {
           <button
             type="button"
             onClick={() => setActiveTab('history')}
-            className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            className={`shrink-0 flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'history'
                 ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-300 shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
@@ -268,7 +283,7 @@ export default function MaintenanceModule({ onBack }) {
                 <option value="" disabled className={OPTION_CLASS}>
                   Tezgah Seçin...
                 </option>
-                {AREAS.map((a) => (
+                {machineNames.map((a) => (
                   <option key={a} value={a} className={OPTION_CLASS}>
                     {a}
                   </option>
@@ -327,20 +342,26 @@ export default function MaintenanceModule({ onBack }) {
                 </div>
 
                 <span
-                  className={`text-xs font-black uppercase px-3 py-1 rounded-full border self-start sm:self-auto ${
-                    item1Status === 'Uygun'
-                      ? 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300'
-                      : 'bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-500/15 dark:text-rose-300 animate-pulse'
+                  className={`text-xs font-black uppercase px-3 py-1 rounded-full border self-start sm:self-auto whitespace-nowrap ${
+                    item1Status === ''
+                      ? 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+                      : item1Status === 'Uygun'
+                        ? 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300'
+                        : 'bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-500/15 dark:text-rose-300 animate-pulse'
                   }`}
                 >
-                  {item1Status === 'Uygun' ? '✓ Uygun (3-5 Bar)' : '⚠️ Uygun Değil'}
+                  {item1Status === ''
+                    ? 'Değer Giriniz (3-5 Bar)'
+                    : item1Status === 'Uygun'
+                      ? '✓ Uygun (3-5 Bar)'
+                      : '⚠️ Uygun Değil (3-5 Bar Dışı)'}
                 </span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase">
-                    Okunan Manometre Değeri (Bar)
+                    Okunan Manometre Değeri (Bar) *
                   </label>
                   <div className="flex items-center gap-2">
                     <input
@@ -348,12 +369,16 @@ export default function MaintenanceModule({ onBack }) {
                       step="0.1"
                       min="0"
                       max="12"
+                      placeholder="Örn: 4.0 (3 - 5 bar arası değer yazın)"
                       value={item1Val}
                       onChange={(e) => handlePressureChange(e.target.value)}
-                      className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-lg font-mono font-bold text-slate-800 dark:text-white focus:outline-none focus:border-sky-500 text-center"
+                      className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-base sm:text-lg font-mono font-bold text-slate-800 dark:text-white placeholder:text-xs sm:placeholder:text-sm placeholder:font-sans placeholder:font-medium placeholder:text-slate-400 focus:outline-none focus:border-sky-500 text-center"
                     />
-                    <span className="text-sm font-bold text-slate-500">BAR</span>
+                    <span className="text-sm font-bold text-slate-500 shrink-0">BAR</span>
                   </div>
+                  <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                    Manometre üzerinde okuduğunuz basınç değerini (Bar) yukarıya yazın veya aşağıdan seçin. Standart aralık: 3.0 – 5.0 bar.
+                  </p>
 
                   <div className="flex gap-2 pt-1">
                     {[3.5, 4.0, 4.5].map((preset) => (
@@ -361,14 +386,18 @@ export default function MaintenanceModule({ onBack }) {
                         key={preset}
                         type="button"
                         onClick={() => handlePressureChange(String(preset))}
-                        className="flex-1 py-1.5 px-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-sky-50 text-xs font-mono font-bold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                        className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-mono font-bold border cursor-pointer transition-colors ${
+                          item1Val === String(preset)
+                            ? 'bg-sky-100 dark:bg-sky-500/20 text-sky-700 dark:text-sky-300 border-sky-400 dark:border-sky-500/50'
+                            : 'bg-slate-100 dark:bg-slate-800 hover:bg-sky-50 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                        }`}
                       >
                         {preset} bar
                       </button>
                     ))}
                   </div>
 
-                  {item1Status !== 'Uygun' && (
+                  {item1Status === 'Uygun Değil' && (
                     <div className="bg-rose-50 dark:bg-rose-950/80 border border-rose-200 dark:border-rose-500/40 p-2.5 rounded-xl text-xs text-rose-700 dark:text-rose-300 font-semibold">
                       ⚠️ Basınç 3-5 bar limitleri dışındadır!
                     </div>
@@ -451,7 +480,7 @@ export default function MaintenanceModule({ onBack }) {
               </div>
 
               <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={() => setItem2Status('Kaçak Yok')}
@@ -526,7 +555,7 @@ export default function MaintenanceModule({ onBack }) {
                   <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase">
                     İşlem Durumu
                   </label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <button
                       type="button"
                       onClick={() => setItem3Status('Boşaltıldı')}

@@ -14,11 +14,12 @@ import {
 } from 'lucide-react';
 
 import { useActions } from '../hooks/useActions';
+import { useCatalog } from '../hooks/useCatalog';
 import { useUsers } from '../hooks/useUsers';
 import { useToast } from '../hooks/useToast';
 import {
   ACTION_STATUS,
-  DEPARTMENTS,
+  DEFECT_CARD_TYPES,
   OPTION_CLASS,
   isManager,
   isSuperAdmin,
@@ -26,6 +27,7 @@ import {
 import {
   formatDate,
   formatDateTime,
+  getStatusColor,
   parseNotes,
   toDisplayDate,
   toInputDate,
@@ -112,6 +114,7 @@ const getProgressColor = (progress) => {
 
 export default function ActionModule({ onBack, currentUser }) {
   const { actions, loading, error, addAction, updateAction, deleteAction, refresh } = useActions();
+  const { departmentNames } = useCatalog();
   const { users } = useUsers();
   const { toast, showToast, hideToast } = useToast();
 
@@ -292,7 +295,7 @@ export default function ActionModule({ onBack, currentUser }) {
           }
         : {
             ...EMPTY_FORM,
-            assignee_name: `${DEPARTMENTS[0]} Yöneticisi`,
+            assignee_name: departmentNames[0] ? `${departmentNames[0]} Yöneticisi` : '',
             sub_actions: INITIAL_SUB_ACTIONS.map((s) => ({ ...s })),
           }
     );
@@ -396,7 +399,7 @@ export default function ActionModule({ onBack, currentUser }) {
       : scopeActions.filter((a) => a.status === statusFilter);
 
   const departmentAssignees = [
-    ...DEPARTMENTS.map((d) => `${d} Yöneticisi`),
+    ...departmentNames.map((d) => `${d} Yöneticisi`),
     'Bakım Onarım Yöneticisi',
     'İlgili Bölüm Sorumlusu',
   ];
@@ -472,11 +475,11 @@ export default function ActionModule({ onBack, currentUser }) {
       {view === 'list' && (
         <div className="mb-6">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white/95 dark:bg-slate-900/90 border border-slate-200/90 dark:border-slate-800 p-2.5 rounded-2xl shadow-xs">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex overflow-x-auto whitespace-nowrap no-scrollbar items-center gap-2">
               <button
                 type="button"
                 onClick={() => setActionScope('all')}
-                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${
+                className={`shrink-0 flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${
                   actionScope === 'all'
                     ? 'bg-indigo-100 text-indigo-900 border border-indigo-300 dark:bg-indigo-500/20 dark:text-indigo-200 dark:border-indigo-500/40 shadow-2xs'
                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
@@ -492,7 +495,7 @@ export default function ActionModule({ onBack, currentUser }) {
               <button
                 type="button"
                 onClick={() => setActionScope('my')}
-                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${
+                className={`shrink-0 flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${
                   actionScope === 'my'
                     ? 'bg-indigo-100 text-indigo-900 border border-indigo-300 dark:bg-indigo-500/20 dark:text-indigo-200 dark:border-indigo-500/40 shadow-2xs'
                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
@@ -506,12 +509,12 @@ export default function ActionModule({ onBack, currentUser }) {
               </button>
             </div>
 
-            <div className="flex items-center justify-end gap-2 px-2">
-              <Filter className="w-3.5 h-3.5 text-slate-400" />
+            <div className="flex items-center justify-end gap-2 px-2 shrink-0">
+              <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-white rounded-xl px-3 py-2 outline-none focus:border-indigo-400 cursor-pointer"
+                className="w-full sm:w-auto bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-white rounded-xl px-3 py-2 outline-none focus:border-indigo-400 cursor-pointer"
               >
                 <option value="all" className={OPTION_CLASS}>
                   Tüm Durumlar ({scopeActions.length})
@@ -544,28 +547,58 @@ export default function ActionModule({ onBack, currentUser }) {
             className="space-y-6"
           >
             {/* Bağlı Hata Kartı Bilgi Şeridi */}
-            {currentAction?.issue_id && (
-              <div className="bg-rose-50/80 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-500/30 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5">
-                  <Tag className="w-5 h-5 text-rose-500" />
-                  <div>
-                    <div className="text-xs font-black text-rose-900 dark:text-rose-200">
-                      Hata Kartı #{currentAction.issue_id} Kaynaklı Otomatik Aksiyon
-                    </div>
-                    <div className="text-[11px] text-rose-700 dark:text-rose-300">
-                      {currentAction.issue_area && `Alan: ${currentAction.issue_area.toUpperCase()} • `}
-                      {currentAction.issue_department && `İlgili Bölüm: ${currentAction.issue_department} • `}
-                      Hata Kartı Termini: {formatDate(currentAction.issue_target_date)}
+            {currentAction?.issue_id && (() => {
+              const isYellowIssue =
+                currentAction.hata_karti_turu === DEFECT_CARD_TYPES.YELLOW;
+              return (
+                <div
+                  className={`rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 border ${
+                    isYellowIssue
+                      ? 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-200 dark:border-amber-500/30'
+                      : 'bg-rose-50/80 dark:bg-rose-950/30 border-rose-200 dark:border-rose-500/30'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Tag
+                      className={`w-5 h-5 shrink-0 ${
+                        isYellowIssue ? 'text-amber-500' : 'text-rose-500'
+                      }`}
+                    />
+                    <div>
+                      <div
+                        className={`text-xs font-black ${
+                          isYellowIssue
+                            ? 'text-amber-900 dark:text-amber-200'
+                            : 'text-rose-900 dark:text-rose-200'
+                        }`}
+                      >
+                        Hata Kartı #{currentAction.issue_id} Kaynaklı Otomatik Aksiyon
+                      </div>
+                      <div
+                        className={`text-[11px] ${
+                          isYellowIssue
+                            ? 'text-amber-700 dark:text-amber-300'
+                            : 'text-rose-700 dark:text-rose-300'
+                        }`}
+                      >
+                        {currentAction.issue_area && `Alan: ${currentAction.issue_area.toUpperCase()} • `}
+                        {currentAction.issue_department && `İlgili Bölüm: ${currentAction.issue_department} • `}
+                        Hata Kartı Termini: {formatDate(currentAction.issue_target_date)}
+                      </div>
                     </div>
                   </div>
+                  {currentAction.hata_karti_turu && (
+                    <span
+                      className={`text-xs font-bold px-3 py-1 rounded-full ${getStatusColor(
+                        currentAction.hata_karti_turu
+                      )}`}
+                    >
+                      {currentAction.hata_karti_turu}
+                    </span>
+                  )}
                 </div>
-                {currentAction.hata_karti_turu && (
-                  <span className="text-xs font-bold px-3 py-1 rounded-full bg-rose-100 text-rose-800 border border-rose-300 dark:bg-rose-500/20 dark:text-rose-300">
-                    {currentAction.hata_karti_turu}
-                  </span>
-                )}
-              </div>
-            )}
+              );
+            })()}
 
             {/* İşlem Yapılacak Konu */}
             <div>

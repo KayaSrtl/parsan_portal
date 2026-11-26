@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 
 import { useApiResource } from '../hooks/useApiResource';
+import { notifyCatalogUpdated } from '../hooks/useCatalog';
 import { useUsers } from '../hooks/useUsers';
 import { useToast } from '../hooks/useToast';
 import { apiFetch, apiFetchBlob, toFormData } from '../lib/api';
@@ -554,6 +555,7 @@ export default function MachineModule({ onBack, currentUser }) {
       await apiFetch('/machines', { method: 'POST', body: { name } });
       setNewMachineName('');
       showToast(`${name} tezgahı eklendi.`);
+      notifyCatalogUpdated();
       refresh();
     } catch (err) {
       showToast(err.message, true);
@@ -566,6 +568,7 @@ export default function MachineModule({ onBack, currentUser }) {
     try {
       await apiFetch(`/machines/${machine.id}`, { method: 'DELETE' });
       showToast(`${machine.name} tezgahı silindi.`);
+      notifyCatalogUpdated();
       refresh();
     } catch (err) {
       showToast(err.message, true);

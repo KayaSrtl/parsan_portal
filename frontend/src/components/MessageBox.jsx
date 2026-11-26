@@ -78,7 +78,7 @@ export default function MessageBox({ currentUser, onNavigate }) {
     if (left < margin) left = margin;
     if (left + width > vw - margin) left = vw - margin - width;
 
-    const top = rect.bottom + 8;
+    const top = Math.min(rect.bottom + 8, vh - 260);
     const maxHeight = Math.max(240, vh - top - margin);
 
     setCoords({ top, left, width, maxHeight });
@@ -97,7 +97,7 @@ export default function MessageBox({ currentUser, onNavigate }) {
     };
   }, [isOpen]);
 
-  // Dışarı tıklayınca kapatma (buton ve portal paneli hariç)
+  // Dışarı tıklayınca veya Escape'e basınca kapatma (buton ve portal paneli hariç)
   useEffect(() => {
     const handleClickOutside = (event) => {
       const target = event.target;
@@ -105,13 +105,18 @@ export default function MessageBox({ currentUser, onNavigate }) {
       if (buttonRef.current && buttonRef.current.contains(target)) return;
       setIsOpen(false);
     };
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setIsOpen(false);
+    };
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       document.addEventListener('touchstart', handleClickOutside);
+      window.addEventListener('keydown', handleKeyDown);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('touchstart', handleClickOutside);
+      window.removeEventListener('keydown', handleKeyDown);
     };
   }, [isOpen]);
 
@@ -222,7 +227,7 @@ export default function MessageBox({ currentUser, onNavigate }) {
         aria-label="Mesaj Kutusu"
         aria-expanded={isOpen}
       >
-        <Mail className="w-4 h-4 md:w-5 md:h-5" />
+        <Mail className="w-4 h-4" />
 
         {unreadCount > 0 && (
           <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full bg-rose-500 text-[10px] font-black text-white shadow-sm animate-pulse">

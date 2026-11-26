@@ -25,8 +25,9 @@ router.get(
   })
 );
 
-// Kullanıcı olusturma/degistirme/silme sadece super admin yetkisindedir.
-router.use(requireRole(ROLES.SUPER_ADMIN));
+// Kullanıcı oluşturma/değiştirme/silme yönetici rollerine açıktır;
+// ancak Süper Admin rolü atama veya Süper Admin hesabına müdahale yalnızca Süper Admin'e aittir.
+router.use(requireRole(...MANAGER_ROLES));
 
 const validate = ({ name, email, role }, { requireAll = true } = {}) => {
   if (requireAll && (!name?.trim() || !email?.trim())) return 'Ad ve e-posta zorunludur';
@@ -47,6 +48,11 @@ router.post(
 
     const invalid = validate({ name, email, role });
     if (invalid) return res.status(400).json({ error: invalid });
+    if (req.user.role !== ROLES.SUPER_ADMIN && role === ROLES.SUPER_ADMIN) {
+      return res
+        .status(403)
+        .json({ error: 'Süper Admin rolü yalnızca Süper Admin tarafından atanabilir' });
+    }
     if (!password || password.length < 6) {
       return res.status(400).json({ error: 'Şifre en az 6 karakter olmalıdır' });
     }
@@ -82,8 +88,21 @@ router.put(
     const target = await get('SELECT id, role FROM users WHERE id = ?', [userId]);
     if (!target) return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
 
+    const nextRole = role || target.role;
+
+    if (req.user.role !== ROLES.SUPER_ADMIN) {
+      if (target.role === ROLES.SUPER_ADMIN) {
+        return res.status(403).json({ error: 'Süper Admin hesabı üzerinde işlem yapamazsınız' });
+      }
+      if (nextRole === ROLES.SUPER_ADMIN) {
+        return res
+          .status(403)
+          .json({ error: 'Süper Admin rolü yalnızca Süper Admin tarafından atanabilir' });
+      }
+    }
+
     // Son super admin'in yetkisini dusurup sistemi kilitlemeyi engelle.
-    if (target.role === ROLES.SUPER_ADMIN && role && role !== ROLES.SUPER_ADMIN) {
+    if (target.role === ROLES.SUPER_ADMIN && nextRole !== ROLES.SUPER_ADMIN) {
       const { count } = await get('SELECT COUNT(*) AS count FROM users WHERE role = ?', [
         ROLES.SUPER_ADMIN,
       ]);
@@ -105,13 +124,13 @@ router.put(
       const passwordHash = bcrypt.hashSync(password, bcrypt.genSaltSync(10));
       await run(
         'UPDATE users SET name = ?, email = ?, password = ?, role = ?, department = ? WHERE id = ?',
-        [name.trim(), email.trim(), passwordHash, role, normalizeDepartment(department), userId]
+        [name.trim(), email.trim(), passwordHash, nextRole, normalizeDepartment(department), userId]
       );
     } else {
       await run('UPDATE users SET name = ?, email = ?, role = ?, department = ? WHERE id = ?', [
         name.trim(),
         email.trim(),
-        role,
+        nextRole,
         normalizeDepartment(department),
         userId,
       ]);
@@ -132,6 +151,10 @@ router.delete(
 
     const target = await get('SELECT id, role FROM users WHERE id = ?', [userId]);
     if (!target) return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
+
+    if (req.user.role !== ROLES.SUPER_ADMIN && target.role === ROLES.SUPER_ADMIN) {
+      return res.status(403).json({ error: 'Süper Admin hesabı üzerinde işlem yapamazsınız' });
+    }
 
     if (target.role === ROLES.SUPER_ADMIN) {
       const { count } = await get('SELECT COUNT(*) AS count FROM users WHERE role = ?', [

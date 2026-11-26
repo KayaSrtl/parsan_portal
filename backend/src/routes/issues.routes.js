@@ -1,6 +1,6 @@
 const express = require('express');
 const { get, all, run } = require('../db');
-const { authenticateToken, requireRole, ROLES } = require('../middleware/auth');
+const { authenticateToken, requireRole, isManager, ROLES } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/errors');
 const { singleImage } = require('../middleware/upload');
 const { parseArray } = require('../utils/json');
@@ -186,11 +186,19 @@ router.put(
     const oldIssue = await get('SELECT * FROM issues WHERE id = ?', [issueId]);
     if (!oldIssue) return res.status(404).json({ error: 'Kayıt bulunamadı' });
 
+    const canEdit = isManager(req.user) || Number(oldIssue.user_id) === Number(req.user.id);
+    if (!canEdit) {
+      return res
+        .status(403)
+        .json({ error: 'Bu hata kartını yalnızca kartı açan kişi veya yöneticiler düzenleyebilir' });
+    }
+
     const revisions = parseArray(oldIssue.revizyon_gecmisi);
     revisions.push({
       tarih: new Date().toISOString(),
       degistiren_kisi: req.user.name,
       eski_durum: oldIssue.mevcut_durum,
+      eski_kart_turu: oldIssue.hata_karti_turu,
       eski_gelisme: oldIssue.gelisme_notlari,
       eski_problem: oldIssue.problem_tanimi,
       eski_aksiyon: oldIssue.planlanan_aksiyon,
@@ -223,6 +231,33 @@ router.put(
     params.push(issueId);
 
     await run(`UPDATE issues SET ${updates.join(', ')} WHERE id = ?`, params);
+
+    // Kart türü değiştirildiyse bağlı aksiyonların metnindeki kart türünü de güncelle.
+    const newCardType =
+      body.hata_karti_turu !== undefined ? normalizeCardType(body.hata_karti_turu) : undefined;
+    if (newCardType !== undefined && newCardType !== oldIssue.hata_karti_turu) {
+      try {
+        const linkedActions = await all(
+          'SELECT id, action_content FROM actions WHERE issue_id = ?',
+          [issueId]
+        );
+        for (const act of linkedActions) {
+          const currentContent = String(act.action_content || '');
+          const nextContent = currentContent.replace(
+            /Kırmızı Hata Kartı|Sarı Hata Kartı/g,
+            newCardType
+          );
+          if (nextContent !== currentContent) {
+            await run('UPDATE actions SET action_content = ? WHERE id = ?', [
+              nextContent,
+              act.id,
+            ]);
+          }
+        }
+      } catch (cardSyncErr) {
+        console.warn('[issues] Aksiyon kart türü senkronizasyon uyarısı:', cardSyncErr.message);
+      }
+    }
 
     // Hata kartı kapatıldığında/açıldığında bağlı aksiyonun durumunu senkronize et.
     const newStatus =

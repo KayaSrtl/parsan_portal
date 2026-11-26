@@ -1,31 +1,21 @@
 import { useEffect, useRef } from 'react';
-import { registerPendingSave } from '../lib/pendingSave';
+import { registerUnsavedGuard } from '../lib/pendingSave';
 
 /**
  * Kaydedilmemiş değişiklikleri korur:
- *  - sekme kapatılmak istendiğinde tarayıcı uyarısı gösterir,
- *  - uygulama içi sayfa geçişlerinde otomatik kaydetmeyi tetikler.
+ *  - uygulama içi sayfa geçişlerinde onay penceresi için unsaved guard kaydeder,
+ *  - sekme/tarayıcı kapatılmak istendiğinde beforeunload uyarısı gösterir.
  *
- * `save` her render'da yeniden oluşturulabilir. Güncel sürümü bir ref'te
- * tutuyoruz ki kayıt/temizlik döngüsü her render'da yeniden kurulmasın ve
- * bayat bir closure çağrılmasın.
+ * ASLA sessiz otomatik kaydetme yapmaz.
  */
-export function useUnsavedChanges(isDirty, save) {
-  const saveRef = useRef(save);
-  const dirtyRef = useRef(isDirty);
+export function useUnsavedChanges(isDirty) {
+  const dirtyRef = useRef(Boolean(isDirty));
 
   useEffect(() => {
-    saveRef.current = save;
-    dirtyRef.current = isDirty;
-  });
+    dirtyRef.current = Boolean(isDirty);
+  }, [isDirty]);
 
-  useEffect(
-    () =>
-      registerPendingSave(async () => {
-        if (dirtyRef.current) await saveRef.current?.();
-      }),
-    []
-  );
+  useEffect(() => registerUnsavedGuard(() => Boolean(dirtyRef.current)), []);
 
   useEffect(() => {
     if (!isDirty) return undefined;

@@ -1,27 +1,46 @@
 /**
- * Formda kaydedilmemis degisiklik varken ust menuden baska bir sayfaya
- * gecilirse, gecis oncesi otomatik kayit calistirilir.
- *
- * Eskiden bu is `window.pendingSaveCallback` global degiskeniyle yapiliyordu;
- * ayni anda iki form acildiginda birbirinin kaydini iptal edebiliyordu.
- * Burada kayitlar bir Set'te tutulur, hepsi sirayla calisir.
+ * Kaydedilmemiş değişiklik koruyucusu (unsaved changes guard).
+ * Sayfa geçişlerinde sessiz otomatik kaydetme yapılmaz; bunun yerine aktif
+ * formların kaydedilmemiş değişikliği olup olmadığı sorgulanır ve kullanıcıya
+ * onay penceresi gösterilir.
  */
 
-const handlers = new Set();
+const guards = new Set();
 
-/** Bir kayit fonksiyonu kaydeder; donen fonksiyon kaydi siler. */
-export function registerPendingSave(handler) {
-  handlers.add(handler);
-  return () => handlers.delete(handler);
+/**
+ * Kaydedilmemiş değişiklik kontrol fonksiyonu kaydeder.
+ * Dönen temizlik fonksiyonu çağrıldığında kayıt silinir.
+ */
+export function registerUnsavedGuard(checkFn) {
+  if (typeof checkFn !== 'function') return () => {};
+  guards.add(checkFn);
+  return () => {
+    guards.delete(checkFn);
+  };
 }
 
-/** Kayitli tum bekleyen kaydetme islemlerini calistirir. */
-export async function flushPendingSaves() {
-  for (const handler of handlers) {
+/** Kayıtlı koruyuculardan herhangi biri kaydedilmemiş değişiklik bildirirse true döner. */
+export function hasUnsavedChanges() {
+  for (const checkFn of guards) {
     try {
-      await handler();
-    } catch (err) {
-      console.error('Sayfa gecisinde otomatik kayit basarisiz oldu', err);
+      if (checkFn()) return true;
+    } catch {
+      // Hatalı bir guard diğer kontrolleri engellemesin.
     }
   }
+  return false;
+}
+
+/**
+ * Geriye dönük uyumluluk için korunur; otomatik kaydetme YAPMAZ.
+ */
+export function registerPendingSave() {
+  return () => {};
+}
+
+/**
+ * Geriye dönük uyumluluk için korunur; otomatik kaydetme YAPMAZ.
+ */
+export async function flushPendingSaves() {
+  // Bilinçli olarak boş: sessiz otomatik kaydetme devre dışıdır.
 }

@@ -103,6 +103,16 @@ const login = async ({ email, password }) =>
     }),
     403
   );
+  check('bölüm listesini görebilir', await status('/departments', { headers: S }), 200);
+  check(
+    'bölüm ekleyemez',
+    await status('/departments', {
+      method: 'POST',
+      headers: SJ,
+      body: JSON.stringify({ name: 'Test Bölümü' }),
+    }),
+    403
+  );
 
   console.log('\nDoğrulama kuralları');
   check(
@@ -178,6 +188,18 @@ const login = async ({ email, password }) =>
     check('kısmi güncelleme alanı korur', updated.issue.bildirilen_alan, 'MP4000');
     check('durum güncellendi', updated.issue.mevcut_durum, 'Beklemede');
     check('revizyon geçmişi kaydedildi', updated.issue.revizyon_gecmisi.length, 1);
+
+    const forbiddenUpdate = new FormData();
+    forbiddenUpdate.append('mevcut_durum', 'Kapalı');
+    check(
+      'standart kullanıcı başkasının hata kartını güncelleyemez',
+      await status(`/issues/${created.id}`, {
+        method: 'PUT',
+        headers: S,
+        body: forbiddenUpdate,
+      }),
+      403
+    );
 
     check(
       'geçici kayıt silindi',
