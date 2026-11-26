@@ -360,40 +360,40 @@ export default function Sidebar({
   );
 
   const renderFooter = ({ isCollapsed, closeDrawer, showCollapseBtn }) => (
-    <div className="shrink-0 border-t border-slate-200/80 dark:border-slate-800 p-2.5 bg-white/80 dark:bg-slate-900/90">
+    <div className="shrink-0 border-t border-slate-200/80 dark:border-slate-800 p-2.5 space-y-1 bg-white/80 dark:bg-slate-900/90">
+      {!guestUser && (
+        <button
+          type="button"
+          onClick={() => handleSelect({ app: 'portal', tab: 'settings' }, false, closeDrawer)}
+          title={isCollapsed ? 'Ayarlar' : undefined}
+          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl border text-xs sm:text-[13px] font-bold transition-colors cursor-pointer ${
+            isCollapsed ? 'justify-center px-2' : ''
+          } ${
+            isSettingsActive
+              ? 'bg-indigo-50 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-200 border-indigo-200/80 dark:border-indigo-500/40'
+              : 'border-transparent text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+          }`}
+        >
+          <Settings className="w-4 h-4 shrink-0" />
+          {!isCollapsed && <span className="truncate">Ayarlar</span>}
+        </button>
+      )}
+
       <div className={`flex items-center gap-1.5 ${isCollapsed ? 'flex-col' : ''}`}>
-        {!guestUser ? (
-          <button
-            type="button"
-            onClick={() => handleSelect({ app: 'portal', tab: 'settings' }, false, closeDrawer)}
-            title={isCollapsed ? 'Ayarlar' : undefined}
-            className={`flex-1 w-full flex items-center gap-2.5 px-3 py-2 rounded-xl border text-xs sm:text-[13px] font-bold transition-colors cursor-pointer ${
-              isCollapsed ? 'justify-center px-2' : ''
-            } ${
-              isSettingsActive
-                ? 'bg-indigo-50 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-200 border-indigo-200/80 dark:border-indigo-500/40'
-                : 'border-transparent text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            <Settings className="w-4 h-4 shrink-0" />
-            {!isCollapsed && <span className="truncate">Ayarlar</span>}
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => {
-              if (closeDrawer) onClose?.();
-              onLogout?.();
-            }}
-            title={isCollapsed ? 'Çıkış Yap' : undefined}
-            className={`flex-1 w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs sm:text-[13px] font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer ${
-              isCollapsed ? 'justify-center px-2' : ''
-            }`}
-          >
-            <LogOut className="w-4 h-4 shrink-0" />
-            {!isCollapsed && <span className="truncate">Çıkış Yap</span>}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => {
+            if (closeDrawer) onClose?.();
+            onLogout?.();
+          }}
+          title={isCollapsed ? 'Çıkış Yap' : undefined}
+          className={`flex-1 w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs sm:text-[13px] font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer ${
+            isCollapsed ? 'justify-center px-2' : ''
+          }`}
+        >
+          <LogOut className="w-4 h-4 shrink-0" />
+          {!isCollapsed && <span className="truncate">Çıkış Yap</span>}
+        </button>
 
         {showCollapseBtn && onToggleCollapse && (
           <button
