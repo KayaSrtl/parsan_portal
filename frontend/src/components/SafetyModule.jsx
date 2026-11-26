@@ -16,9 +16,8 @@ import { useCatalog } from '../hooks/useCatalog';
 import { SAFETY_LEVELS, OPTION_CLASS } from '../lib/constants';
 import { apiFetch, fileUrl, toFormData } from '../lib/api';
 import { formatDateTime } from '../utils/helpers';
-import PortalBackButton from './ui/PortalBackButton';
 
-export default function SafetyModule({ onBack }) {
+export default function SafetyModule() {
   const { user } = useAuth();
   const { machineNames, departmentNames } = useCatalog();
   // Modül doğrudan 2 ana bölüme ayrılmıştır: 'Risk Bildirimi' ve 'Ramak Kala'
@@ -222,7 +221,6 @@ export default function SafetyModule({ onBack }) {
       {/* Üst Başlık */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-5 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
         <div>
-          <PortalBackButton onBack={onBack} className="mb-2" />
           <h1 className="text-2xl sm:text-3xl font-black text-slate-800 dark:text-white flex items-center gap-2.5">
             <ShieldAlert className="w-7 h-7 text-amber-500" />
             <span>İSG Risk Bildirimi Modülü</span>

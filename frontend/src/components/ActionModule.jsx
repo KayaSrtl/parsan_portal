@@ -418,10 +418,9 @@ export default function ActionModule({ onBack, currentUser }) {
     <div className="max-w-6xl mx-auto animate-fade-in p-2 md:p-4">
       <div className="bg-white/95 dark:bg-slate-900/90 border border-slate-200/90 dark:border-slate-800 rounded-3xl p-4 sm:p-6 mb-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3 self-start md:self-auto">
-          <PortalBackButton
-            onBack={handleGoBack}
-            label={view === 'form' ? 'Aksiyon Listesine Dön' : 'Portala Dön'}
-          />
+          {view === 'form' && (
+            <PortalBackButton onBack={handleGoBack} label="Aksiyon Listesine Dön" />
+          )}
           <div>
             <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white">
               {view === 'form'

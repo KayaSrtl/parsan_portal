@@ -23,7 +23,6 @@ import { OPTION_CLASS, isGuest, isManager, isSuperAdmin } from '../lib/constants
 import { formatDate } from '../utils/helpers';
 import ConfirmDialog from './ui/ConfirmDialog';
 import Toast from './ui/Toast';
-import PortalBackButton from './ui/PortalBackButton';
 
 const MAX_PDF_MB = 25;
 
@@ -508,7 +507,7 @@ function MachineCard({
   );
 }
 
-export default function MachineModule({ onBack, currentUser }) {
+export default function MachineModule({ currentUser }) {
   const { data: machines, loading, error, refresh } = useApiResource('/machines');
   const { users } = useUsers();
   const { toast, showToast, hideToast } = useToast();
@@ -580,7 +579,6 @@ export default function MachineModule({ onBack, currentUser }) {
       <div className="bg-white/95 dark:bg-slate-900/90 border border-slate-200/90 dark:border-slate-800 rounded-3xl p-4 sm:p-6 shadow-sm space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-2">
-            <PortalBackButton onBack={onBack} />
             <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
               <Cog className="w-6 h-6 text-teal-500" /> Tezgah İzleme Modülü
             </h2>

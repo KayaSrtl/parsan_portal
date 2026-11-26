@@ -24,9 +24,7 @@ import {
   Clock,
   Cog,
   Flame,
-  Plus,
   RefreshCw,
-  Shield,
   ShieldAlert,
   TrendingUp,
   Wrench,
@@ -38,7 +36,6 @@ import {
   ACTION_STATUS,
   DEFECT_CARD_TYPES,
   isGuest,
-  isManager,
   STATUS,
 } from '../lib/constants';
 import { formatDate, getDelayDays, getStatusColor } from '../utils/helpers';
@@ -250,7 +247,6 @@ function GuestOperatorView({ user, issues, onNavigateTarget }) {
 function PortalView({ onSelectApp, onNavigate, issues = [] }) {
   const { user } = useAuth();
   const guestUser = isGuest(user);
-  const managerUser = isManager(user);
 
   const [actions, setActions] = useState([]);
   const [audits, setAudits] = useState([]);
@@ -656,9 +652,9 @@ function PortalView({ onSelectApp, onNavigate, issues = [] }) {
 
   return (
     <div className="max-w-7xl mx-auto space-y-5 animate-fade-in">
-      {/* 1. KOMPAKT KARŞILAMA + YATAY SLIDE HIZLI İŞLEM BUTONLARI */}
+      {/* 1. KOMPAKT KARŞILAMA */}
       <div className="bg-white/95 dark:bg-slate-900/90 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-4 sm:p-5 shadow-xs">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-status-beacon shrink-0" />
@@ -671,47 +667,16 @@ function PortalView({ onSelectApp, onNavigate, issues = [] }) {
             </h1>
           </div>
 
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar whitespace-nowrap pb-0.5 -mx-1 px-1">
-            <button
-              type="button"
-              onClick={() => navigateTarget({ app: 'hata_karti_ac', tab: 'dashboard' })}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs transition-colors shrink-0 cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" /> Hata Kartı
-            </button>
-            <button
-              type="button"
-              onClick={() => navigateTarget({ app: 'otonom_bakim', tab: 'open_issues' })}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-sky-50 dark:bg-sky-500/15 hover:bg-sky-100 dark:hover:bg-sky-500/25 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-500/30 text-xs font-bold transition-colors shrink-0 cursor-pointer"
-            >
-              <Wrench className="w-3.5 h-3.5" /> Otonom Bakım
-            </button>
-            <button
-              type="button"
-              onClick={() => navigateTarget({ app: 'aksiyon_modulu', tab: 'actions' })}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-500/15 hover:bg-emerald-100 dark:hover:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30 text-xs font-bold transition-colors shrink-0 cursor-pointer"
-            >
-              <CheckSquare className="w-3.5 h-3.5" /> Aksiyonlar
-            </button>
-            {managerUser && (
-              <button
-                type="button"
-                onClick={() => navigateTarget({ app: 'admin_paneli', tab: 'users' })}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition-colors shrink-0 cursor-pointer"
-              >
-                <Shield className="w-3.5 h-3.5" /> Admin Paneli
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={loadDashboardData}
-              disabled={loadingLive}
-              title="Verileri Yenile"
-              className="inline-flex items-center justify-center p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors shrink-0 cursor-pointer disabled:opacity-50"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${loadingLive ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={loadDashboardData}
+            disabled={loadingLive}
+            title="Verileri Yenile"
+            aria-label="Verileri Yenile"
+            className="inline-flex items-center justify-center p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors shrink-0 cursor-pointer disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${loadingLive ? 'animate-spin' : ''}`} />
+          </button>
         </div>
       </div>
 

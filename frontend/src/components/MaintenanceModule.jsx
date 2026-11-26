@@ -17,9 +17,8 @@ import { useCatalog } from '../hooks/useCatalog';
 import { SHIFTS, OPTION_CLASS } from '../lib/constants';
 import { apiFetch, fileUrl } from '../lib/api';
 import { formatDateTime } from '../utils/helpers';
-import PortalBackButton from './ui/PortalBackButton';
 
-export default function MaintenanceModule({ onBack }) {
+export default function MaintenanceModule() {
   const { user } = useAuth();
   const { machineNames } = useCatalog();
   const [activeTab, setActiveTab] = useState('form'); // 'form' | 'history'
@@ -215,7 +214,6 @@ export default function MaintenanceModule({ onBack }) {
       {/* Üst Başlık */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-5 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
         <div>
-          <PortalBackButton onBack={onBack} className="mb-2" />
           <h1 className="text-2xl sm:text-3xl font-black text-slate-800 dark:text-white flex items-center gap-2.5">
             <Wrench className="w-7 h-7 text-sky-500" />
             <span>Otonom Bakım Modülü (TPM)</span>

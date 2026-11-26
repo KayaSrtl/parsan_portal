@@ -16,7 +16,6 @@ import {
 import { useTheme } from '../contexts/ThemeContext';
 import { apiFetch } from '../lib/api';
 import { ROLES, isManager } from '../lib/constants';
-import PortalBackButton from './ui/PortalBackButton';
 
 const MIN_PASSWORD_LENGTH = 6;
 
@@ -32,7 +31,7 @@ const THEME_OPTIONS = [
   { value: 'system', label: 'Sistem Teması', Icon: Monitor },
 ];
 
-export default function SettingsView({ currentUser, onBack, onOpenAdmin, onLogout }) {
+export default function SettingsView({ currentUser, onOpenAdmin, onLogout }) {
   const { theme, setTheme } = useTheme();
 
   const [passwords, setPasswords] = useState({ old: '', next: '', confirm: '' });
@@ -76,12 +75,6 @@ export default function SettingsView({ currentUser, onBack, onOpenAdmin, onLogou
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 animate-fade-in pb-10">
-      {onBack && (
-        <div className="mb-2">
-          <PortalBackButton onBack={onBack} />
-        </div>
-      )}
-
       {/* Yöneticiler için Yönetim Paneli Yönlendirme Kartı */}
       {isManager(currentUser) && (
         <div className="bg-gradient-to-r from-indigo-600 to-blue-600 dark:from-indigo-700 dark:to-slate-800 p-5 sm:p-6 rounded-2xl shadow-md text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">

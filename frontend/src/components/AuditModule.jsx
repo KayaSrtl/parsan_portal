@@ -32,7 +32,6 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useCatalog } from '../hooks/useCatalog';
 import { apiFetch } from '../lib/api';
-import PortalBackButton from './ui/PortalBackButton';
 
 const QUESTIONS = {
   seiri: [
@@ -78,7 +77,7 @@ const periodLabelOf = (period) => {
   return `${MONTH_NAMES[parseInt(month, 10) - 1] || month} ${year}`;
 };
 
-export default function AuditModule({ onBack }) {
+export default function AuditModule() {
   const { user } = useAuth();
   const { departmentNames, machineNames } = useCatalog();
   const auditAreas = useMemo(() => {
@@ -440,7 +439,6 @@ export default function AuditModule({ onBack }) {
       {/* Üst Menü ve Başlık */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-5 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
         <div>
-          <PortalBackButton onBack={onBack} className="mb-2" />
           <h1 className="text-2xl sm:text-3xl font-black text-slate-800 dark:text-white flex items-center gap-2">
             <ShieldAlert className="text-teal-500" size={28} />
             <span>5S Denetim ve Performans Yönetimi</span>

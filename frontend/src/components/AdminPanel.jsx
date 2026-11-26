@@ -25,7 +25,6 @@ import { useToast } from '../hooks/useToast';
 import { OPTION_CLASS, isManager, isSuperAdmin } from '../lib/constants';
 import UserManagement from './UserManagement';
 import ConfirmDialog from './ui/ConfirmDialog';
-import PortalBackButton from './ui/PortalBackButton';
 import Toast from './ui/Toast';
 
 const VALID_TABS = ['users', 'machines', 'departments', 'system'];
@@ -39,7 +38,7 @@ const TABS = [
 
 const normalizeTab = (tab) => (VALID_TABS.includes(tab) ? tab : 'users');
 
-export default function AdminPanel({ currentUser, initialTab = 'users', onBack }) {
+export default function AdminPanel({ currentUser, initialTab = 'users' }) {
   const [activeTab, setActiveTab] = useState(() => normalizeTab(initialTab));
   const [prevInitialTab, setPrevInitialTab] = useState(initialTab);
 
@@ -51,11 +50,6 @@ export default function AdminPanel({ currentUser, initialTab = 'users', onBack }
   if (!isManager(currentUser)) {
     return (
       <div className="max-w-3xl mx-auto p-4 sm:p-8 animate-fade-in">
-        {onBack && (
-          <div className="mb-4">
-            <PortalBackButton onBack={onBack} />
-          </div>
-        )}
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl p-6 text-center space-y-2">
           <Shield className="w-10 h-10 text-red-500 mx-auto" />
           <h2 className="text-lg font-bold text-red-700 dark:text-red-400">Yetkisiz Erişim</h2>
@@ -86,11 +80,6 @@ export default function AdminPanel({ currentUser, initialTab = 'users', onBack }
               </p>
             </div>
           </div>
-          {onBack && (
-            <div className="shrink-0">
-              <PortalBackButton onBack={onBack} />
-            </div>
-          )}
         </div>
 
         {/* Yatay kaydırılabilir (slide) sekme çubuğu */}
