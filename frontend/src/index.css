@@ -33,11 +33,16 @@ body {
     radial-gradient(1200px 600px at 8% -10%, rgba(224, 231, 255, 0.55), transparent 60%),
     radial-gradient(900px 500px at 100% 0%, rgba(255, 228, 230, 0.45), transparent 55%),
     radial-gradient(900px 600px at 50% 110%, rgba(209, 250, 229, 0.4), transparent 60%);
-  background-attachment: fixed;
   color: #1e293b;
   color-scheme: light;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+@media (min-width: 1024px) {
+  body {
+    background-attachment: fixed;
+  }
 }
 
 html.dark body {

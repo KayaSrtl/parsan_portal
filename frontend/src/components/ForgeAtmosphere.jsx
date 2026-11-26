@@ -27,7 +27,7 @@ function ForgeAtmosphere({ density = 4, showFloatingProps = true }) {
   }, [density]);
 
   return (
-    <div className="forge-atmosphere pointer-events-none fixed inset-0 overflow-hidden z-0 select-none print:hidden">
+    <div className="forge-atmosphere hidden lg:block pointer-events-none fixed inset-0 overflow-hidden z-0 select-none print:hidden">
       {/* 1. STATİK TEKNİK ENDÜSTRİYEL IZGARA */}
       <div className="absolute inset-0 bg-industrial-grid opacity-70" />
 

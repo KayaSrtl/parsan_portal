@@ -437,7 +437,7 @@ export default function Sidebar({
       {/* MOBİL: Sol taraftan slide-over drawer (başlık sabit, menü bağımsız kayar) */}
       <div
         className={`lg:hidden fixed inset-0 z-50 transition-opacity duration-200 print:hidden ${
-          isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+          isOpen ? 'opacity-100 visible pointer-events-auto' : 'opacity-0 invisible pointer-events-none'
         }`}
         aria-hidden={!isOpen}
       >
